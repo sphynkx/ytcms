@@ -1,0 +1,7 @@
+grpcio==1.66.1
+grpcio-tools==1.66.1
+faster-whisper==1.0.0
+av
+numpy==2.3.5
+pydantic==2.8.2
+redis==5.0.1
