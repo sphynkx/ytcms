@@ -1,0 +1,19 @@
+[Unit]
+Description=YTCMS Caption Service (supplemental for YurTube app)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/ytcms
+EnvironmentFile=-/opt/ytcms/.env
+ExecStart=/opt/ytcms/run.sh
+User=root
+Group=root
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

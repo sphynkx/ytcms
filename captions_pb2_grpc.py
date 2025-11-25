@@ -62,7 +62,7 @@ class CaptionsServiceServicer(object):
     """
 
     def Submit(self, request_iterator, context):
-        """Потоковая загрузка видео.
+        """Stream load video.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')

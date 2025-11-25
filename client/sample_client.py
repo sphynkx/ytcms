@@ -71,7 +71,7 @@ def main():
         result = stub.GetResult(captions_pb2.ResultRequest(job_id=submit_reply.job_id), metadata=md)
         print("Detected language:", result.detected_lang)
         print("Segments:", len(result.segments))
-        print("VTT preview:\n", "\n".join(result.vtt.splitlines()[:8]))
+        print("VTT preview:\n", "\n".join(result.vtt.splitlines()))
     else:
         print("Job failed:", status.error)
 

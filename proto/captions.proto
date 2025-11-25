@@ -41,7 +41,7 @@ message SubmitReply {
   string request_id = 1;
   string job_id     = 2;
   string status     = 3; // queued | error
-  string error      = 4; // если status=error
+  string error      = 4; // if status=error
 }
 
 // --- Request status by job_id
@@ -70,7 +70,7 @@ message Segment {
   string text  = 3;
 }
 
-// --- Полный результат
+// --- Full result
 message ResultReply {
   string job_id        = 1;
   string detected_lang = 2;
@@ -85,7 +85,7 @@ message ResultReply {
 
 // --- Service
 service CaptionsService {
-  // Потоковая загрузка видео.
+  // Stream load video.
   rpc Submit (stream UploadChunk) returns (SubmitReply);
 
   // One-time status.

@@ -32,6 +32,19 @@ python -m ytcms.server.run_server --host 0.0.0.0 --port 9099
 ```
 or via `./run.sh`
 
+__Nore:__ At first run service downloads model and put it to
+ `~/.cache/huggingface`. If you modify config and set another model - may be need to delete this cache before service rerun.
+ 
+
+## Run via systemd
+```bash
+cp install/ytcms.service /etc/systemd/system/ytcms.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now ytcms.service
+sudo systemctl status ytcms.service
+journalctl -u ytcms.service -f
+```
+
 
 ## Test
 Put in the root service dir some short video file and run test:

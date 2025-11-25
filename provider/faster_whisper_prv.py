@@ -1,8 +1,9 @@
 import asyncio
 from typing import Any, Dict, List, Tuple, Optional, Callable
 from faster_whisper import WhisperModel
+from config import get_settings
 
-# For very ancient CPUz.. May expand with int8_float16 ..
+# Supported compute types (keep minimal and safe)
 _SUPPORTED = {"int8", "float32"}
 
 
@@ -11,6 +12,7 @@ def _sanitize_compute_type(ct: str) -> str:
 
 
 def _safe_progress(cb: Callable[[float], None], value: float) -> None:
+    # Never raise from progress callback
     try:
         cb(value)
     except Exception:
@@ -23,7 +25,16 @@ class FasterWhisperProvider:
         self.model_name = model_name
         self.device = device
         self.compute_type = compute_type
+
+        # Create model with provided settings
         self._model = WhisperModel(model_name, device=device, compute_type=compute_type)
+
+        # Minimal, safe debug info without touching private attributes
+        try:
+            size_label = getattr(self._model, "model_size", "unknown")
+        except Exception:
+            size_label = "unknown"
+        print(f"[ytcms] Model loaded name={model_name} size_label={size_label} device={device} compute_type={compute_type}")
 
     async def transcribe(
         self,
@@ -33,9 +44,12 @@ class FasterWhisperProvider:
         progress_cb: Optional[Callable[[float], None]] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """
-        Performs transcription. Updates progress at each segment.
-        progress: 0.05 start -> up to 0.90 during segments -> 0.95 postprocess -> 1.0 completion (in queue_job).
+        Performs transcription with parameters from Settings.
+        Progress convention: 0.05 at start -> up to 0.90 while iterating segments ->
+        0.95 for post-processing -> 1.0 is set by queue worker on completion.
         """
+        settings = get_settings()
+
         if task not in ("transcribe", "translate"):
             task = "transcribe"
 
@@ -47,15 +61,18 @@ class FasterWhisperProvider:
                 video_path,
                 language=None if lang == "auto" else lang,
                 task=task,
-                beam_size=1,
-                vad_filter=True,
+                beam_size=settings.beam_size,
+                vad_filter=settings.vad_filter,
+                temperature=settings.temperature,
+                compression_ratio_threshold=settings.compression_ratio_threshold,
+                log_prob_threshold=settings.log_prob_threshold,
+                no_speech_threshold=settings.no_speech_threshold,
+                patience=settings.patience,
             )
 
             duration = float(info.duration or 0.0)
             segs: List[Dict[str, Any]] = []
-
-            # If duration unknown (0), make a rough linear estimate of up to ~20 segments.
-            assumed_max_segs = 20.0
+            assumed_max_segs = float(settings.progress_assumed_max_segs)
 
             for seg in segments_iter:
                 segs.append({
@@ -69,9 +86,8 @@ class FasterWhisperProvider:
                         frac = min(max(float(seg.end) / duration, 0.0), 1.0)
                         p = 0.05 + 0.85 * frac
                     else:
-                        # trying to fix bad progress on sample_client.. but unsuccessful
+                        # Fallback progress when duration is unknown
                         p = 0.05 + 0.85 * (len(segs) / assumed_max_segs)
-
                     p = min(p, 0.9)
                     _safe_progress(progress_cb, p)
 
@@ -87,6 +103,14 @@ class FasterWhisperProvider:
                 "lang_requested": lang,
                 "lang_detected": info.language,
                 "task": task,
+                # Echo actual decoding params for auditing
+                "beam_size": settings.beam_size,
+                "vad_filter": settings.vad_filter,
+                "temperature": settings.temperature,
+                "compression_ratio_threshold": settings.compression_ratio_threshold,
+                "log_prob_threshold": settings.log_prob_threshold,
+                "no_speech_threshold": settings.no_speech_threshold,
+                "patience": settings.patience,
             }
             return segs, meta
 
@@ -98,6 +122,7 @@ _provider_singleton: FasterWhisperProvider | None = None
 
 
 def get_provider(model: str, device: str, compute_type: str) -> FasterWhisperProvider:
+    # Simple singleton provider
     global _provider_singleton
     if _provider_singleton is None:
         _provider_singleton = FasterWhisperProvider(model, device, compute_type)
