@@ -12,6 +12,12 @@ JOB_HASH_PREFIX = "ytcms:job:"
 JOB_QUEUE_KEY = "ytcms:jobs"
 SHUTDOWN_SENTINEL = b"_shutdown_sentinel"
 
+def _fmt_pct(x: float) -> str:
+    try:
+        return f"{x*100:.1f}%"
+    except Exception:
+        return "?"
+
 class JobQueue:
     def __init__(self) -> None:
         self._jobs: Dict[str, Job] = {}
@@ -82,7 +88,7 @@ class JobQueue:
             await self._redis.hset(JOB_HASH_PREFIX + job_id, mapping={b"progress": str(p).encode()})
         except Exception:
             pass  # Redis may be already closed
-        print(f"[ytcms] Progress job_id={job_id} p={p:.3f}")
+        print(f"[ytcms] Progress job_id={job_id} p={_fmt_pct(p)}")
 
     async def worker_loop(self, worker_id: int) -> None:
         settings = get_settings()
@@ -147,9 +153,9 @@ class JobQueue:
                 # Normalize language
                 ld = meta.get("lang_detected")
                 req = job.lang
-                if req and req != "auto":
+                if req and req not in ("auto", "mixed"):
                     meta["lang_detected"] = req
-                elif ld not in {"en", "ru", "de", "fr", "es", "it"}:
+                elif ld not in {"en", "ru", "de", "fr", "es", "it", "uk"}:
                     meta["lang_detected"] = "en"
 
                 job.segments = segments
@@ -180,8 +186,6 @@ class JobQueue:
                 except Exception:
                     pass
                 print(f"[ytcms] Error job_id={job_id} err={e}")
-
-        # print(f"[worker {worker_id}] stopped")
 
     async def start_workers(self) -> None:
         for i in range(get_settings().worker_concurrency):

@@ -25,6 +25,7 @@ var/log/
 
 # Project-specific
 _XLAM/
+models/
 
 # Storage: keep only gitkeep
 storage/*

@@ -12,6 +12,8 @@ Next:
 cd /opt
 git clone https://github.com/sphynkx/ytcms
 cd ytcms
+mkdir models
+wget https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin -O models/lid.176.bin
 python -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
