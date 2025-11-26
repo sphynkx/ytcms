@@ -12,7 +12,6 @@ JOB_HASH_PREFIX = "ytcms:job:"
 JOB_QUEUE_KEY = "ytcms:jobs"
 SHUTDOWN_SENTINEL = b"_shutdown_sentinel"
 
-
 class JobQueue:
     def __init__(self) -> None:
         self._jobs: Dict[str, Job] = {}
@@ -54,12 +53,20 @@ class JobQueue:
                     b"progress": b"0",
                     b"file_path": file_path.encode(),
                 })
+                print(f"[ytcms] Submit received job_id={job_id} video_id={video_id} lang={lang} task={task}")
+
             with open(job.file_path, "ab") as f:
                 f.write(chunk)
+
             if last:
                 job.finished_upload = True
                 await self._redis.hset(JOB_HASH_PREFIX + job.job_id, mapping={b"finished_upload": b"1"})
                 await self._redis.lpush(JOB_QUEUE_KEY, job.job_id.encode())
+                try:
+                    size_mb = os.path.getsize(job.file_path) / (1024*1024)
+                except Exception:
+                    size_mb = -1
+                print(f"[ytcms] Upload completed job_id={job.job_id} file={job.file_path} size={size_mb:.1f}MB")
                 return job.job_id
             return None
 
@@ -74,11 +81,13 @@ class JobQueue:
         try:
             await self._redis.hset(JOB_HASH_PREFIX + job_id, mapping={b"progress": str(p).encode()})
         except Exception:
-            pass  # Redis maybe closed already
+            pass  # Redis may be already closed
+        print(f"[ytcms] Progress job_id={job_id} p={p:.3f}")
 
     async def worker_loop(self, worker_id: int) -> None:
         settings = get_settings()
         provider = get_provider(settings.model, settings.device, settings.compute_type)
+        print(f"[ytcms] Worker started id={worker_id}")
 
         while not self._stop_event.is_set():
             try:
@@ -113,6 +122,8 @@ class JobQueue:
             except Exception:
                 pass
 
+            print(f"[ytcms] Processing job_id={job_id} video_id={job.video_id} file={job.file_path} lang={job.lang} task={job.task}")
+
             loop = asyncio.get_running_loop()
 
             def progress_cb(p: float):
@@ -130,9 +141,10 @@ class JobQueue:
                     job.file_path, job.lang, job.task, progress_cb=progress_cb
                 )
 
+                # Pre-final step
                 await self._update_progress(job_id, 0.95)
 
-                # lang normalize: if not defined - rewrite
+                # Normalize language
                 ld = meta.get("lang_detected")
                 req = job.lang
                 if req and req != "auto":
@@ -153,6 +165,8 @@ class JobQueue:
                     })
                 except Exception:
                     pass
+
+                print(f"[ytcms] Done job_id={job_id} segs={len(segments)} lang={meta.get('lang_detected')} duration={meta.get('duration_sec')}")
             except Exception as e:
                 job.status = "error"
                 job.error = str(e)
@@ -165,6 +179,7 @@ class JobQueue:
                     })
                 except Exception:
                     pass
+                print(f"[ytcms] Error job_id={job_id} err={e}")
 
         # print(f"[worker {worker_id}] stopped")
 
@@ -175,7 +190,6 @@ class JobQueue:
 
     async def stop(self):
         self._stop_event.set()
-        # wakeup brpop
         try:
             await self._redis.lpush(JOB_QUEUE_KEY, SHUTDOWN_SENTINEL)
         except Exception:

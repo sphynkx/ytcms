@@ -55,8 +55,11 @@ class Settings:
         self.no_speech_threshold = float(os.getenv("YTCMS_NO_SPEECH_THRESHOLD", "0.6"))
         self.patience = int(os.getenv("YTCMS_PATIENCE", "1"))
 
-        # Preogress euristics when duration == 0
+        # Progress euristics when duration == 0
         self.progress_assumed_max_segs = int(os.getenv("YTCMS_PROGRESS_ASSUMED_MAX_SEGS", "20"))
+
+        # Disable context carry-over if needed
+        self.condition_on_previous_text = _parse_bool(os.getenv("YTCMS_CONDITION_ON_PREVIOUS_TEXT", "true"), True)
 
 
 @lru_cache()

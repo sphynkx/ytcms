@@ -6,10 +6,8 @@ from config import get_settings
 # Supported compute types (keep minimal and safe)
 _SUPPORTED = {"int8", "float32"}
 
-
 def _sanitize_compute_type(ct: str) -> str:
     return ct if ct in _SUPPORTED else "int8"
-
 
 def _safe_progress(cb: Callable[[float], None], value: float) -> None:
     # Never raise from progress callback
@@ -17,7 +15,6 @@ def _safe_progress(cb: Callable[[float], None], value: float) -> None:
         cb(value)
     except Exception:
         pass
-
 
 class FasterWhisperProvider:
     def __init__(self, model_name: str, device: str, compute_type: str) -> None:
@@ -57,6 +54,8 @@ class FasterWhisperProvider:
             if progress_cb:
                 _safe_progress(progress_cb, 0.05)
 
+            print(f"[ytcms] Transcribe start file={video_path} lang_req={lang} task={task} beam={settings.beam_size} vad={settings.vad_filter} cond_prev={settings.condition_on_previous_text}")
+
             segments_iter, info = self._model.transcribe(
                 video_path,
                 language=None if lang == "auto" else lang,
@@ -68,9 +67,12 @@ class FasterWhisperProvider:
                 log_prob_threshold=settings.log_prob_threshold,
                 no_speech_threshold=settings.no_speech_threshold,
                 patience=settings.patience,
+                condition_on_previous_text=settings.condition_on_previous_text,  # key param to avoid repetition drift
             )
 
             duration = float(info.duration or 0.0)
+            print(f"[ytcms] Transcribe info duration={duration:.3f} lang_detected={info.language}")
+
             segs: List[Dict[str, Any]] = []
             assumed_max_segs = float(settings.progress_assumed_max_segs)
 
@@ -80,6 +82,10 @@ class FasterWhisperProvider:
                     "end": float(seg.end),
                     "text": seg.text.strip()
                 })
+
+                # Light per-segment log to help analyze repetition/drift on music
+                if len(segs) <= 3 or len(segs) % 25 == 0:
+                    print(f"[ytcms] seg#{len(segs)} {seg.start:.2f}->{seg.end:.2f} text='{seg.text[:80].strip()}'")
 
                 if progress_cb:
                     if duration > 0:
@@ -111,15 +117,15 @@ class FasterWhisperProvider:
                 "log_prob_threshold": settings.log_prob_threshold,
                 "no_speech_threshold": settings.no_speech_threshold,
                 "patience": settings.patience,
+                "condition_on_previous_text": settings.condition_on_previous_text,
             }
+            print(f"[ytcms] Transcribe done segments={len(segs)} lang_used={meta['lang_detected']}")
             return segs, meta
 
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, _run)
 
-
 _provider_singleton: FasterWhisperProvider | None = None
-
 
 def get_provider(model: str, device: str, compute_type: str) -> FasterWhisperProvider:
     # Simple singleton provider
