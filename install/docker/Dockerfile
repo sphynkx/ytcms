@@ -1,47 +1,35 @@
-FROM nvidia/cuda:12.2.2-runtime-ubuntu22.04
+FROM fedora:40
 
-ENV DEBIAN_FRONTEND=noninteractive
+RUN dnf -y update && dnf -y install dnf-plugins-core git wget
 
-# build tools and dev ned to rebuild av
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    software-properties-common \
-    wget \
-    git \
-    pkg-config \
-    build-essential \
-    libavformat-dev \
-    libavcodec-dev \
-    libavdevice-dev \
-    libavutil-dev \
-    libswscale-dev \
-    libswresample-dev \
-    libavfilter-dev \
-    && add-apt-repository ppa:deadsnakes/ppa \
-    && apt-get update && apt-get install -y --no-install-recommends \
+RUN dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
+    https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
+
+RUN dnf install -y \
     python3.12 \
-    python3.12-venv \
-    python3.12-dev \
+    python3.12-devel \
     python3-pip \
+    gcc \
+    gcc-c++ \
     ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
-    update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1
-
-RUN wget https://bootstrap.pypa.io/get-pip.py && python3.12 get-pip.py && rm get-pip.py
+    ffmpeg-devel \
+    pkgconf-pkg-config \
+    findutils \
+    && dnf clean all
 
 WORKDIR /app
 
 COPY install/requirements.txt .
 
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir nvidia-cudnn-cu12==9.1.0.70 nvidia-cublas-cu12==12.1.3.1
+RUN pip3.12 install --upgrade pip && \
+    pip3.12 install --no-cache-dir -r requirements.txt && \
+    pip3.12 install --no-cache-dir nvidia-cudnn-cu12==9.1.0.70 nvidia-cublas-cu12==12.1.3.1
 
-LD_LIBRARY_PATH=/usr/local/lib/python3.12/dist-packages/nvidia/cudnn/lib:/usr/local/lib/python3.12/dist-packages/nvidia/cublas/lib:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=/usr/local/lib/python3.12/site-packages/nvidia/cudnn/lib:/usr/local/lib/python3.12/site-packages/nvidia/cublas/lib:/usr/lib64/python3.12/site-packages/nvidia/cudnn/lib:/usr/lib64/python3.12/site-packages/nvidia/cublas/lib:$LD_LIBRARY_PATH
 
 COPY . .
 
 RUN mkdir -p /tmp/ytcms
 EXPOSE 9099
 
-CMD ["python", "run.py"]
+CMD ["python3", "run.py"]

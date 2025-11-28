@@ -3,7 +3,7 @@ services:
     build:
       context: ../../
       dockerfile: install/docker/Dockerfile
-    image: ytcms:cuda12-production
+    image: ytcms:fedora-production
     container_name: ytcms_service
     depends_on:
       - redis
@@ -12,11 +12,11 @@ services:
       - YTCMS_REDIS_URL=redis://redis:6379/0
       - YTCMS_HOST=0.0.0.0
       
-      # === LID Settings ===
+      # === LID ===
       - YTCMS_LID_ENABLED=true
       - YTCMS_LID_MODEL_PATH=/app/models/lid.176.bin
       
-      # === GPU Settings ===
+      # === NVIDIA/GPU ===
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       - NVIDIA_VISIBLE_DEVICES=all
     env_file:

@@ -1,6 +1,6 @@
 grpcio==1.66.1
 grpcio-tools==1.66.1
-faster-whisper==1.0.3
+faster-whisper==1.0.0
 av>=11.0.0
 numpy<2.0.0
 pydantic==2.8.2
