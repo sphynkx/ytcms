@@ -1,0 +1,47 @@
+services:
+  ytcms:
+    build:
+      context: ../../
+      dockerfile: install/docker/Dockerfile
+    image: ytcms:cuda12-production
+    container_name: ytcms_service
+    depends_on:
+      - redis
+    environment:
+      - PYTHONUNBUFFERED=1
+      - YTCMS_REDIS_URL=redis://redis:6379/0
+      - YTCMS_HOST=0.0.0.0
+      
+      # === LID Settings ===
+      - YTCMS_LID_ENABLED=true
+      - YTCMS_LID_MODEL_PATH=/app/models/lid.176.bin
+      
+      # === GPU Settings ===
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - NVIDIA_VISIBLE_DEVICES=all
+    env_file:
+      - .env
+    ports:
+      - "9099:9099"
+    volumes:
+      - whisper_cache:/root/.cache/huggingface
+      - ../../models:/app/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: ytcms_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+volumes:
+  whisper_cache:
+  redis_data:

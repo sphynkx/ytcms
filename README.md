@@ -34,7 +34,7 @@ python -m ytcms.server.run_server --host 0.0.0.0 --port 9099
 ```
 or via `./run.sh`
 
-__Nore:__ At first run service downloads model and put it to
+__Note:__ At first run service downloads model and put it to
  `~/.cache/huggingface`. If you modify config and set another model - may be need to delete this cache before service rerun.
  
 
@@ -47,6 +47,20 @@ sudo systemctl status ytcms.service
 journalctl -u ytcms.service -f
 ```
 
+## Run via docker
+As above:
+```bash
+git clone https://github.com/sphynkx/ytcms
+cd ytcms
+mkdir models
+curl -L -o models/lid.176.bin https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin
+```
+And:
+```bash
+cd install/docker
+docker-compose up -d --build
+docker-compose logs -f
+```
 
 ## Test
 Put in the root service dir some short video file and run test:
