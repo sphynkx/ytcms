@@ -75,6 +75,7 @@ class CaptionsServiceImpl(captions_pb2_grpc.CaptionsServiceServicer):
             error=job_info.get("error", "")
         )
 
+
     async def GetResult(self, request, context):
         """
         Returns VTT content if status is DONE.
@@ -89,15 +90,20 @@ class CaptionsServiceImpl(captions_pb2_grpc.CaptionsServiceServicer):
         status = job_info.get("status")
         
         if status != "DONE":
-            # Not ready yet
+            # Not ready yet - return emptyness
             return captions_pb2.ResultReply(
                 job_id=request.job_id,
-                content="",
-                format="vtt" 
+                vtt="" 
             )
 
         return captions_pb2.ResultReply(
             job_id=request.job_id,
-            content=job_info.get("result", ""),
-            format="vtt"
+            vtt=job_info.get("result", ""),
+            # Rest fields are empty now
+            # todo: implement them in worker.py and storage.py
+            detected_lang="auto", 
+            model=settings.model,
+            device=settings.device,
+            compute_type=settings.compute_type,
+            task="transcribe"
         )
