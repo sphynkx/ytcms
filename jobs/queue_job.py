@@ -3,6 +3,7 @@ import time
 import logging
 import threading
 import asyncio
+from datetime import timedelta
 from faster_whisper import WhisperModel
 import fasttext
 
@@ -10,7 +11,7 @@ from config import get_settings
 from jobs.storage import storage
 
 settings = get_settings()
-logging.basicConfig(level=getattr(logging, settings.log_level), format='[ytcms-worker] %(message)s')
+logging.basicConfig(level=getattr(logging, settings.log_level), format='%(asctime)s [ytcms-worker] %(message)s', datefmt='%H:%M:%S')
 logger = logging.getLogger("worker")
 
 class JobQueue:
@@ -90,16 +91,19 @@ class JobQueue:
             settings.model,
             device=settings.device,
             compute_type=settings.compute_type,
-            download_root=settings.temp_dir # Using temp dir or model path
+            download_root=settings.temp_dir 
         )
         
         lid_model = None
         if settings.lid_enabled:
-            if os.path.exists(settings.lid_model_path):
-                logger.info(f"Loading LID model: {settings.lid_model_path}")
-                lid_model = fasttext.load_model(settings.lid_model_path)
-            else:
-                logger.warning(f"LID model not found at {settings.lid_model_path}")
+            try:
+                if os.path.exists(settings.lid_model_path):
+                    logger.info(f"Loading LID model: {settings.lid_model_path}")
+                    lid_model = fasttext.load_model(settings.lid_model_path)
+                else:
+                    logger.warning(f"LID model not found at {settings.lid_model_path}")
+            except ImportError:
+                logger.warning("fasttext module not installed, LID disabled")
         
         return model, lid_model
 
@@ -125,13 +129,11 @@ class JobQueue:
             # 2. Transcribe
             start_time = time.time()
             
-            # Handle auto language
             language_arg = None if lang_req == "auto" else lang_req
 
-            # (Optional) LID Logic could go here if you want pre-check using lid_model
-            # For now, relying on Whisper's auto-detect or explicit lang
-
-            segments, info = model.transcribe(
+            # Run transcription
+            # model.transcribe returns segments generator and info
+            segments_generator, info = model.transcribe(
                 file_path,
                 beam_size=settings.beam_size,
                 vad_filter=settings.vad_filter,
@@ -139,18 +141,32 @@ class JobQueue:
                 language=language_arg
             )
 
-            # 3. Format VTT
+            total_duration = info.duration
+            logger.info(f"Audio duration: {timedelta(seconds=int(total_duration))}. Language: {info.language} ({info.language_probability:.0%})")
+
+            # 3. Iterate and collect segments (Log progress)
             vtt_lines = ["WEBVTT\n"]
-            for segment in segments:
+            
+            last_logged_percent = 0
+            
+            for segment in segments_generator:
                 start = self._format_timestamp(segment.start)
                 end = self._format_timestamp(segment.end)
                 text = segment.text.strip()
                 vtt_lines.append(f"{start} --> {end}\n{text}\n")
+                
+                # Log progress
+                if total_duration > 0:
+                    current_percent = int((segment.end / total_duration) * 100)
+                    # print every 5% or if much of time was pass
+                    if current_percent >= last_logged_percent + 5:
+                        logger.info(f"Progress job_id={job_id}: {current_percent}% ({self._format_timestamp(segment.end)} / {self._format_timestamp(total_duration)})")
+                        last_logged_percent = current_percent
             
             result_vtt = "\n".join(vtt_lines)
             duration = time.time() - start_time
             
-            logger.info(f"Done job_id={job_id}. Duration: {duration:.2f}s")
+            logger.info(f"Done job_id={job_id}. Processing time: {duration:.2f}s")
             storage.update_status(job_id, "DONE", result_text=result_vtt)
 
         except Exception as e:
