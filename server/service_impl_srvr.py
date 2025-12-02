@@ -12,15 +12,9 @@ logger = logging.getLogger("server")
 
 class CaptionsServiceImpl(captions_pb2_grpc.CaptionsServiceServicer):
     def __init__(self, queue):
-        # queue is passed from run.py, but we mainly use storage directly
-        # We keep it to maintain signature compatibility if needed
         self.queue = queue
 
     async def Submit(self, request_iterator, context):
-        """
-        Receives file chunks, saves to disk, creates Redis job.
-        Returns immediately (non-blocking).
-        """
         job_id = uuid.uuid4().hex
         temp_path = os.path.join(settings.temp_dir, f"{job_id}.bin")
         
@@ -29,15 +23,12 @@ class CaptionsServiceImpl(captions_pb2_grpc.CaptionsServiceServicer):
         task = "transcribe"
 
         try:
-            # Ensure temp dir exists
             if not os.path.exists(settings.temp_dir):
                 os.makedirs(settings.temp_dir)
 
-            # Write stream to file
             with open(temp_path, "wb") as f:
                 async for chunk in request_iterator:
                     f.write(chunk.data)
-                    # Metadata from stream
                     video_id = chunk.video_id
                     lang = chunk.lang
                     task = chunk.task
@@ -45,11 +36,13 @@ class CaptionsServiceImpl(captions_pb2_grpc.CaptionsServiceServicer):
             file_size_mb = os.path.getsize(temp_path) / (1024 * 1024)
             logger.info(f"Upload received job_id={job_id} video_id={video_id} size={file_size_mb:.2f}MB")
 
-            # Create job in Redis
             storage.create_job(job_id, video_id, temp_path, lang, task)
 
-            # Return QUEUED status immediately
-            return captions_pb2.SubmitReply(job_id=job_id, status="QUEUED")
+            return captions_pb2.SubmitReply(
+                job_id=job_id, 
+                status="queued",
+                percent=-1
+            )
 
         except Exception as e:
             logger.error(f"Submit failed: {e}")
@@ -61,25 +54,53 @@ class CaptionsServiceImpl(captions_pb2_grpc.CaptionsServiceServicer):
             return captions_pb2.SubmitReply()
 
     async def GetStatus(self, request, context):
-        """
-        Polling method. Returns status from Redis.
-        """
         job_info = storage.get_job_info(request.job_id)
         
         if not job_info:
-            return captions_pb2.JobStatusReply(status="NOT_FOUND")
+            return captions_pb2.JobStatusReply(
+                job_id=request.job_id,
+                status="fail",
+                error="Job not found",
+                progress=0.0,
+                percent=-1
+            )
         
+        raw_status = job_info.get("status", "UNKNOWN")
+        
+        # Map statuses to lowercase
+        api_status = "wait"
+        if raw_status == "QUEUED":
+            api_status = "queued" # or "wait"
+        elif raw_status == "PROCESSING":
+            api_status = "processing"
+        elif raw_status == "DONE":
+            api_status = "done"
+        elif raw_status == "ERROR":
+            api_status = "error"
+        
+        # Get int percentage
+        try:
+            percent = int(job_info.get("percent", -1))
+        except (ValueError, TypeError):
+            percent = -1
+        
+        # Calc float progress (0.0 - 1.0)
+        progress_float = 0.0
+        if percent > 0:
+            progress_float = float(percent) / 100.0
+            
+        task_str = job_info.get("task", "transcribe")
+
         return captions_pb2.JobStatusReply(
             job_id=request.job_id,
-            status=job_info.get("status", "UNKNOWN"),
-            error=job_info.get("error", "")
+            status=api_status,
+            progress=progress_float,
+            task=task_str,
+            error=job_info.get("error", ""),
+            percent=percent
         )
 
-
     async def GetResult(self, request, context):
-        """
-        Returns VTT content if status is DONE.
-        """
         job_info = storage.get_job_info(request.job_id)
         
         if not job_info:
@@ -90,20 +111,14 @@ class CaptionsServiceImpl(captions_pb2_grpc.CaptionsServiceServicer):
         status = job_info.get("status")
         
         if status != "DONE":
-            # Not ready yet - return emptyness
-            return captions_pb2.ResultReply(
-                job_id=request.job_id,
-                vtt="" 
-            )
+            # Return empty vtt if not done
+            return captions_pb2.ResultReply(job_id=request.job_id, vtt="")
 
         return captions_pb2.ResultReply(
             job_id=request.job_id,
             vtt=job_info.get("result", ""),
-            # Rest fields are empty now
-            # todo: implement them in worker.py and storage.py
-            detected_lang="auto", 
+            task=job_info.get("task", "transcribe"),
             model=settings.model,
             device=settings.device,
-            compute_type=settings.compute_type,
-            task="transcribe"
+            compute_type=settings.compute_type
         )

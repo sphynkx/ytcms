@@ -42,6 +42,7 @@ message SubmitReply {
   string job_id     = 2;
   string status     = 3; // queued | error
   string error      = 4; // if status=error
+  int32  percent    = 5; // Initial percent (usually -1 or 0)
 }
 
 // --- Request status by job_id
@@ -53,9 +54,10 @@ message JobStatusRequest {
 message JobStatusReply {
   string job_id   = 1;
   string status   = 2;   // queued | processing | done | error
-  float  progress = 3;   // 0..1
+  float  progress = 3;   // 0..1 (Normalized progress)
   string task     = 4;   // transcribe/translate
   string error    = 5;   // error text on status=error
+  int32  percent  = 6;   // 0..100 (Integer progress)
 }
 
 // --- Query result

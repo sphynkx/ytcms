@@ -2,7 +2,6 @@ import os
 import time
 import logging
 import threading
-import asyncio
 from datetime import timedelta
 from faster_whisper import WhisperModel
 import fasttext
@@ -15,25 +14,14 @@ logging.basicConfig(level=getattr(logging, settings.log_level), format='%(asctim
 logger = logging.getLogger("worker")
 
 class JobQueue:
-    """
-    Manages background workers that process jobs from Redis.
-    Replaces the old in-memory queue logic with a Redis polling mechanism.
-    """
     def __init__(self):
         self.workers = []
         self.running = False
 
     async def init(self):
-        """
-        Initialization if needed.
-        Currently no-op as storage is initialized globally.
-        """
         pass
 
     async def start_workers(self):
-        """
-        Starts the worker threads based on worker_concurrency.
-        """
         self.running = True
         for i in range(settings.worker_concurrency):
             t = threading.Thread(target=self._worker_loop, args=(i,), daemon=True)
@@ -42,41 +30,27 @@ class JobQueue:
         logger.info(f"Started {len(self.workers)} worker threads.")
 
     async def stop(self):
-        """
-        Signals workers to stop.
-        """
         logger.info("Stopping workers...")
         self.running = False
 
     async def close(self):
-        """
-        Waits for workers to join (graceful shutdown).
-        """
         for t in self.workers:
             if t.is_alive():
                 t.join(timeout=1.0)
         logger.info("Workers stopped.")
 
     def _worker_loop(self, worker_id):
-        """
-        The main loop running inside a thread.
-        """
         logger.info(f"Worker-{worker_id} started.")
-        
-        # 1. Load Models (Once per thread)
         try:
             model, lid_model = self._load_models()
         except Exception as e:
             logger.critical(f"Worker-{worker_id} failed to load models: {e}")
             return
 
-        # 2. Processing Loop
         while self.running:
             try:
-                # Blocking wait for task
                 job_id = storage.pop_task()
                 if not job_id:
-                    # If queue is empty or timeout, loop again
                     continue
 
                 self._process_job(job_id, model, lid_model)
@@ -108,7 +82,6 @@ class JobQueue:
         return model, lid_model
 
     def _process_job(self, job_id, model, lid_model):
-        # 1. Fetch Info
         job_info = storage.get_job_info(job_id)
         if not job_info:
             logger.error(f"Job {job_id} popped but not found in storage.")
@@ -120,19 +93,17 @@ class JobQueue:
         task = job_info.get("task")
 
         logger.info(f"Processing job_id={job_id} video_id={video_id} task={task} lang={lang_req}")
-        storage.update_status(job_id, "PROCESSING")
+        
+        # Set status PROCESSING, 0%
+        storage.update_status(job_id, status="PROCESSING", percent=0)
 
         try:
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"Audio file not found: {file_path}")
 
-            # 2. Transcribe
             start_time = time.time()
-            
             language_arg = None if lang_req == "auto" else lang_req
 
-            # Run transcription
-            # model.transcribe returns segments generator and info
             segments_generator, info = model.transcribe(
                 file_path,
                 beam_size=settings.beam_size,
@@ -142,12 +113,10 @@ class JobQueue:
             )
 
             total_duration = info.duration
-            logger.info(f"Audio duration: {timedelta(seconds=int(total_duration))}. Language: {info.language} ({info.language_probability:.0%})")
+            logger.info(f"Audio duration: {timedelta(seconds=int(total_duration))}. Language: {info.language}")
 
-            # 3. Iterate and collect segments (Log progress)
             vtt_lines = ["WEBVTT\n"]
-            
-            last_logged_percent = 0
+            last_percent = 0
             
             for segment in segments_generator:
                 start = self._format_timestamp(segment.start)
@@ -155,26 +124,29 @@ class JobQueue:
                 text = segment.text.strip()
                 vtt_lines.append(f"{start} --> {end}\n{text}\n")
                 
-                # Log progress
                 if total_duration > 0:
                     current_percent = int((segment.end / total_duration) * 100)
-                    # print every 5% or if much of time was pass
-                    if current_percent >= last_logged_percent + 5:
-                        logger.info(f"Progress job_id={job_id}: {current_percent}% ({self._format_timestamp(segment.end)} / {self._format_timestamp(total_duration)})")
-                        last_logged_percent = current_percent
+                    # Update Redis only if percentage grown
+                    if current_percent > last_percent:
+                        storage.update_status(job_id, status=None, percent=current_percent)
+                        last_percent = current_percent
+                        
+                        if current_percent % 10 == 0:
+                             logger.info(f"Job {job_id}: {current_percent}%")
             
             result_vtt = "\n".join(vtt_lines)
             duration = time.time() - start_time
             
-            logger.info(f"Done job_id={job_id}. Processing time: {duration:.2f}s")
-            storage.update_status(job_id, "DONE", result_text=result_vtt)
+            logger.info(f"Done job_id={job_id}. Time: {duration:.2f}s")
+            
+            # DONE, 100%
+            storage.update_status(job_id, status="DONE", percent=100, result_text=result_vtt)
 
         except Exception as e:
             logger.error(f"Failed job_id={job_id}: {e}")
-            storage.update_status(job_id, "ERROR", error_msg=str(e))
+            storage.update_status(job_id, status="ERROR", error_msg=str(e))
         
         finally:
-            # Cleanup
             if os.path.exists(file_path):
                 try:
                     os.remove(file_path)

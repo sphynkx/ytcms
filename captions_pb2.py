@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0e\x63\x61ptions.proto\x12\x05ytcms\"}\n\x0bUploadChunk\x12\x12\n\nrequest_id\x18\x01 \x01(\t\x12\x10\n\x08video_id\x18\x02 \x01(\t\x12\x0c\n\x04lang\x18\x03 \x01(\t\x12\x0c\n\x04task\x18\x04 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x05 \x01(\x0c\x12\x0c\n\x04last\x18\x06 \x01(\x08\x12\x10\n\x08\x66ilename\x18\x07 \x01(\t\"P\n\x0bSubmitReply\x12\x12\n\nrequest_id\x18\x01 \x01(\t\x12\x0e\n\x06job_id\x18\x02 \x01(\t\x12\x0e\n\x06status\x18\x03 \x01(\t\x12\r\n\x05\x65rror\x18\x04 \x01(\t\"\"\n\x10JobStatusRequest\x12\x0e\n\x06job_id\x18\x01 \x01(\t\"_\n\x0eJobStatusReply\x12\x0e\n\x06job_id\x18\x01 \x01(\t\x12\x0e\n\x06status\x18\x02 \x01(\t\x12\x10\n\x08progress\x18\x03 \x01(\x02\x12\x0c\n\x04task\x18\x04 \x01(\t\x12\r\n\x05\x65rror\x18\x05 \x01(\t\"\x1f\n\rResultRequest\x12\x0e\n\x06job_id\x18\x01 \x01(\t\"3\n\x07Segment\x12\r\n\x05start\x18\x01 \x01(\x01\x12\x0b\n\x03\x65nd\x18\x02 \x01(\x01\x12\x0c\n\x04text\x18\x03 \x01(\t\"\xbc\x01\n\x0bResultReply\x12\x0e\n\x06job_id\x18\x01 \x01(\t\x12\x15\n\rdetected_lang\x18\x02 \x01(\t\x12\x0b\n\x03vtt\x18\x03 \x01(\t\x12 \n\x08segments\x18\x04 \x03(\x0b\x32\x0e.ytcms.Segment\x12\r\n\x05model\x18\x05 \x01(\t\x12\x0e\n\x06\x64\x65vice\x18\x06 \x01(\t\x12\x14\n\x0c\x63ompute_type\x18\x07 \x01(\t\x12\x14\n\x0c\x64uration_sec\x18\x08 \x01(\x01\x12\x0c\n\x04task\x18\t \x01(\t2\xfb\x01\n\x0f\x43\x61ptionsService\x12\x32\n\x06Submit\x12\x12.ytcms.UploadChunk\x1a\x12.ytcms.SubmitReply(\x01\x12;\n\tGetStatus\x12\x17.ytcms.JobStatusRequest\x1a\x15.ytcms.JobStatusReply\x12@\n\x0cStreamStatus\x12\x17.ytcms.JobStatusRequest\x1a\x15.ytcms.JobStatusReply0\x01\x12\x35\n\tGetResult\x12\x14.ytcms.ResultRequest\x1a\x12.ytcms.ResultReplyb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0e\x63\x61ptions.proto\x12\x05ytcms\"}\n\x0bUploadChunk\x12\x12\n\nrequest_id\x18\x01 \x01(\t\x12\x10\n\x08video_id\x18\x02 \x01(\t\x12\x0c\n\x04lang\x18\x03 \x01(\t\x12\x0c\n\x04task\x18\x04 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x05 \x01(\x0c\x12\x0c\n\x04last\x18\x06 \x01(\x08\x12\x10\n\x08\x66ilename\x18\x07 \x01(\t\"a\n\x0bSubmitReply\x12\x12\n\nrequest_id\x18\x01 \x01(\t\x12\x0e\n\x06job_id\x18\x02 \x01(\t\x12\x0e\n\x06status\x18\x03 \x01(\t\x12\r\n\x05\x65rror\x18\x04 \x01(\t\x12\x0f\n\x07percent\x18\x05 \x01(\x05\"\"\n\x10JobStatusRequest\x12\x0e\n\x06job_id\x18\x01 \x01(\t\"p\n\x0eJobStatusReply\x12\x0e\n\x06job_id\x18\x01 \x01(\t\x12\x0e\n\x06status\x18\x02 \x01(\t\x12\x10\n\x08progress\x18\x03 \x01(\x02\x12\x0c\n\x04task\x18\x04 \x01(\t\x12\r\n\x05\x65rror\x18\x05 \x01(\t\x12\x0f\n\x07percent\x18\x06 \x01(\x05\"\x1f\n\rResultRequest\x12\x0e\n\x06job_id\x18\x01 \x01(\t\"3\n\x07Segment\x12\r\n\x05start\x18\x01 \x01(\x01\x12\x0b\n\x03\x65nd\x18\x02 \x01(\x01\x12\x0c\n\x04text\x18\x03 \x01(\t\"\xbc\x01\n\x0bResultReply\x12\x0e\n\x06job_id\x18\x01 \x01(\t\x12\x15\n\rdetected_lang\x18\x02 \x01(\t\x12\x0b\n\x03vtt\x18\x03 \x01(\t\x12 \n\x08segments\x18\x04 \x03(\x0b\x32\x0e.ytcms.Segment\x12\r\n\x05model\x18\x05 \x01(\t\x12\x0e\n\x06\x64\x65vice\x18\x06 \x01(\t\x12\x14\n\x0c\x63ompute_type\x18\x07 \x01(\t\x12\x14\n\x0c\x64uration_sec\x18\x08 \x01(\x01\x12\x0c\n\x04task\x18\t \x01(\t2\xfb\x01\n\x0f\x43\x61ptionsService\x12\x32\n\x06Submit\x12\x12.ytcms.UploadChunk\x1a\x12.ytcms.SubmitReply(\x01\x12;\n\tGetStatus\x12\x17.ytcms.JobStatusRequest\x1a\x15.ytcms.JobStatusReply\x12@\n\x0cStreamStatus\x12\x17.ytcms.JobStatusRequest\x1a\x15.ytcms.JobStatusReply0\x01\x12\x35\n\tGetResult\x12\x14.ytcms.ResultRequest\x1a\x12.ytcms.ResultReplyb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,17 +34,17 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_UPLOADCHUNK']._serialized_start=25
   _globals['_UPLOADCHUNK']._serialized_end=150
   _globals['_SUBMITREPLY']._serialized_start=152
-  _globals['_SUBMITREPLY']._serialized_end=232
-  _globals['_JOBSTATUSREQUEST']._serialized_start=234
-  _globals['_JOBSTATUSREQUEST']._serialized_end=268
-  _globals['_JOBSTATUSREPLY']._serialized_start=270
-  _globals['_JOBSTATUSREPLY']._serialized_end=365
-  _globals['_RESULTREQUEST']._serialized_start=367
-  _globals['_RESULTREQUEST']._serialized_end=398
-  _globals['_SEGMENT']._serialized_start=400
-  _globals['_SEGMENT']._serialized_end=451
-  _globals['_RESULTREPLY']._serialized_start=454
-  _globals['_RESULTREPLY']._serialized_end=642
-  _globals['_CAPTIONSSERVICE']._serialized_start=645
-  _globals['_CAPTIONSSERVICE']._serialized_end=896
+  _globals['_SUBMITREPLY']._serialized_end=249
+  _globals['_JOBSTATUSREQUEST']._serialized_start=251
+  _globals['_JOBSTATUSREQUEST']._serialized_end=285
+  _globals['_JOBSTATUSREPLY']._serialized_start=287
+  _globals['_JOBSTATUSREPLY']._serialized_end=399
+  _globals['_RESULTREQUEST']._serialized_start=401
+  _globals['_RESULTREQUEST']._serialized_end=432
+  _globals['_SEGMENT']._serialized_start=434
+  _globals['_SEGMENT']._serialized_end=485
+  _globals['_RESULTREPLY']._serialized_start=488
+  _globals['_RESULTREPLY']._serialized_end=676
+  _globals['_CAPTIONSSERVICE']._serialized_start=679
+  _globals['_CAPTIONSSERVICE']._serialized_end=930
 # @@protoc_insertion_point(module_scope)
