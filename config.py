@@ -100,6 +100,11 @@ class Settings:
         self.lid_confidence = float(os.getenv("YTCMS_LID_CONFIDENCE", "0.70"))
         self.lid_favor_neighbors = _parse_bool(os.getenv("YTCMS_LID_FAVOR_NEIGHBORS", "true"), True)
 
+        # === NEW QUEUE SETTINGS ===
+        self.redis_queue_key = os.getenv("YTCMS_REDIS_QUEUE_KEY", "ytcms:queue:tasks")
+        self.redis_job_prefix = os.getenv("YTCMS_REDIS_JOB_PREFIX", "ytcms:job:")
+        self.redis_pub_channel = os.getenv("YTCMS_REDIS_PUB_CHANNEL", "ytcms:notifications")
+
 
 @lru_cache()
 def get_settings() -> Settings:

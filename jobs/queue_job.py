@@ -1,206 +1,172 @@
-import asyncio
-import uuid
 import os
-from typing import Dict, Optional, List
-from redis.asyncio import Redis
-from jobs.models_job import Job
+import time
+import logging
+import threading
+import asyncio
+from faster_whisper import WhisperModel
+import fasttext
+
 from config import get_settings
-from provider.faster_whisper_prv import get_provider
-from utils.vtt_ut import segments_to_vtt
+from jobs.storage import storage
 
-JOB_HASH_PREFIX = "ytcms:job:"
-JOB_QUEUE_KEY = "ytcms:jobs"
-SHUTDOWN_SENTINEL = b"_shutdown_sentinel"
-
-def _fmt_pct(x: float) -> str:
-    try:
-        return f"{x*100:.1f}%"
-    except Exception:
-        return "?"
+settings = get_settings()
+logging.basicConfig(level=getattr(logging, settings.log_level), format='[ytcms-worker] %(message)s')
+logger = logging.getLogger("worker")
 
 class JobQueue:
-    def __init__(self) -> None:
-        self._jobs: Dict[str, Job] = {}
-        self._lock = asyncio.Lock()
-        self._redis: Redis | None = None
-        self._workers: List[asyncio.Task] = []
-        self._stop_event = asyncio.Event()
+    """
+    Manages background workers that process jobs from Redis.
+    Replaces the old in-memory queue logic with a Redis polling mechanism.
+    """
+    def __init__(self):
+        self.workers = []
+        self.running = False
 
     async def init(self):
-        settings = get_settings()
-        self._redis = Redis.from_url(settings.redis_url, decode_responses=False)
-        os.makedirs(settings.temp_dir, exist_ok=True)
+        """
+        Initialization if needed.
+        Currently no-op as storage is initialized globally.
+        """
+        pass
 
-    async def close(self):
-        if self._redis:
-            await self._redis.close()
-
-    async def create_or_append(
-        self,
-        video_id: str,
-        lang: str,
-        task: str,
-        chunk: bytes,
-        last: bool
-    ) -> Optional[str]:
-        async with self._lock:
-            job = next((j for j in self._jobs.values()
-                        if j.video_id == video_id and j.status == "queued" and not j.finished_upload), None)
-            if job is None:
-                job_id = uuid.uuid4().hex
-                file_path = os.path.join(get_settings().temp_dir, f"{job_id}.bin")
-                job = Job(job_id=job_id, video_id=video_id, lang=lang, task=task, file_path=file_path)
-                self._jobs[job_id] = job
-                await self._redis.hset(JOB_HASH_PREFIX + job_id, mapping={
-                    b"video_id": video_id.encode(),
-                    b"lang": lang.encode(),
-                    b"task": task.encode(),
-                    b"status": b"queued",
-                    b"progress": b"0",
-                    b"file_path": file_path.encode(),
-                })
-                print(f"[ytcms] Submit received job_id={job_id} video_id={video_id} lang={lang} task={task}")
-
-            with open(job.file_path, "ab") as f:
-                f.write(chunk)
-
-            if last:
-                job.finished_upload = True
-                await self._redis.hset(JOB_HASH_PREFIX + job.job_id, mapping={b"finished_upload": b"1"})
-                await self._redis.lpush(JOB_QUEUE_KEY, job.job_id.encode())
-                try:
-                    size_mb = os.path.getsize(job.file_path) / (1024*1024)
-                except Exception:
-                    size_mb = -1
-                print(f"[ytcms] Upload completed job_id={job.job_id} file={job.file_path} size={size_mb:.1f}MB")
-                return job.job_id
-            return None
-
-    def get(self, job_id: str) -> Optional[Job]:
-        return self._jobs.get(job_id)
-
-    async def _update_progress(self, job_id: str, p: float):
-        job = self._jobs.get(job_id)
-        if not job or self._stop_event.is_set():
-            return
-        job.progress = p
-        try:
-            await self._redis.hset(JOB_HASH_PREFIX + job_id, mapping={b"progress": str(p).encode()})
-        except Exception:
-            pass  # Redis may be already closed
-        print(f"[ytcms] Progress job_id={job_id} p={_fmt_pct(p)}")
-
-    async def worker_loop(self, worker_id: int) -> None:
-        settings = get_settings()
-        provider = get_provider(settings.model, settings.device, settings.compute_type)
-        print(f"[ytcms] Worker started id={worker_id}")
-
-        while not self._stop_event.is_set():
-            try:
-                result = await self._redis.brpop(JOB_QUEUE_KEY, timeout=2)
-            except Exception:
-                if self._stop_event.is_set():
-                    break
-                continue
-
-            if result is None:
-                continue
-
-            _, raw_job_id = result
-            if raw_job_id == SHUTDOWN_SENTINEL:
-                if self._stop_event.is_set():
-                    break
-                else:
-                    continue
-
-            job_id = raw_job_id.decode()
-            job = self._jobs.get(job_id)
-            if not job:
-                continue
-
-            job.status = "processing"
-            job.progress = 0.05
-            try:
-                await self._redis.hset(JOB_HASH_PREFIX + job_id, mapping={
-                    b"status": b"processing",
-                    b"progress": b"0.05",
-                })
-            except Exception:
-                pass
-
-            print(f"[ytcms] Processing job_id={job_id} video_id={job.video_id} file={job.file_path} lang={job.lang} task={job.task}")
-
-            loop = asyncio.get_running_loop()
-
-            def progress_cb(p: float):
-                if self._stop_event.is_set():
-                    return
-                if loop.is_closed():
-                    return
-                loop.call_soon_threadsafe(
-                    asyncio.create_task,
-                    self._update_progress(job_id, max(0.05, min(p, 0.9)))
-                )
-
-            try:
-                segments, meta = await provider.transcribe(
-                    job.file_path, job.lang, job.task, progress_cb=progress_cb
-                )
-
-                # Pre-final step
-                await self._update_progress(job_id, 0.95)
-
-                # Normalize language
-                ld = meta.get("lang_detected")
-                req = job.lang
-                if req and req not in ("auto", "mixed"):
-                    meta["lang_detected"] = req
-                elif ld not in {"en", "ru", "de", "fr", "es", "it", "uk"}:
-                    meta["lang_detected"] = "en"
-
-                job.segments = segments
-                job.meta = meta
-                job.vtt = segments_to_vtt(segments)
-                job.status = "done"
-                job.progress = 1.0
-                try:
-                    await self._redis.hset(JOB_HASH_PREFIX + job_id, mapping={
-                        b"status": b"done",
-                        b"progress": b"1.0",
-                        b"lang_detected": meta.get("lang_detected", "unknown").encode(),
-                    })
-                except Exception:
-                    pass
-
-                print(f"[ytcms] Done job_id={job_id} segs={len(segments)} lang={meta.get('lang_detected')} duration={meta.get('duration_sec')}")
-            except Exception as e:
-                job.status = "error"
-                job.error = str(e)
-                job.progress = 1.0
-                try:
-                    await self._redis.hset(JOB_HASH_PREFIX + job_id, mapping={
-                        b"status": b"error",
-                        b"progress": b"1.0",
-                        b"error": str(e).encode(),
-                    })
-                except Exception:
-                    pass
-                print(f"[ytcms] Error job_id={job_id} err={e}")
-
-    async def start_workers(self) -> None:
-        for i in range(get_settings().worker_concurrency):
-            t = asyncio.create_task(self.worker_loop(i))
-            self._workers.append(t)
+    async def start_workers(self):
+        """
+        Starts the worker threads based on worker_concurrency.
+        """
+        self.running = True
+        for i in range(settings.worker_concurrency):
+            t = threading.Thread(target=self._worker_loop, args=(i,), daemon=True)
+            t.start()
+            self.workers.append(t)
+        logger.info(f"Started {len(self.workers)} worker threads.")
 
     async def stop(self):
-        self._stop_event.set()
+        """
+        Signals workers to stop.
+        """
+        logger.info("Stopping workers...")
+        self.running = False
+
+    async def close(self):
+        """
+        Waits for workers to join (graceful shutdown).
+        """
+        for t in self.workers:
+            if t.is_alive():
+                t.join(timeout=1.0)
+        logger.info("Workers stopped.")
+
+    def _worker_loop(self, worker_id):
+        """
+        The main loop running inside a thread.
+        """
+        logger.info(f"Worker-{worker_id} started.")
+        
+        # 1. Load Models (Once per thread)
         try:
-            await self._redis.lpush(JOB_QUEUE_KEY, SHUTDOWN_SENTINEL)
-        except Exception:
-            pass
-        for t in self._workers:
+            model, lid_model = self._load_models()
+        except Exception as e:
+            logger.critical(f"Worker-{worker_id} failed to load models: {e}")
+            return
+
+        # 2. Processing Loop
+        while self.running:
             try:
-                await asyncio.wait_for(t, timeout=5)
-            except Exception:
-                t.cancel()
-        self._workers.clear()
+                # Blocking wait for task
+                job_id = storage.pop_task()
+                if not job_id:
+                    # If queue is empty or timeout, loop again
+                    continue
+
+                self._process_job(job_id, model, lid_model)
+
+            except Exception as e:
+                logger.error(f"Worker-{worker_id} loop error: {e}")
+                time.sleep(1)
+
+    def _load_models(self):
+        logger.info(f"Loading Whisper model: {settings.model} ({settings.device})...")
+        model = WhisperModel(
+            settings.model,
+            device=settings.device,
+            compute_type=settings.compute_type,
+            download_root=settings.temp_dir # Using temp dir or model path
+        )
+        
+        lid_model = None
+        if settings.lid_enabled:
+            if os.path.exists(settings.lid_model_path):
+                logger.info(f"Loading LID model: {settings.lid_model_path}")
+                lid_model = fasttext.load_model(settings.lid_model_path)
+            else:
+                logger.warning(f"LID model not found at {settings.lid_model_path}")
+        
+        return model, lid_model
+
+    def _process_job(self, job_id, model, lid_model):
+        # 1. Fetch Info
+        job_info = storage.get_job_info(job_id)
+        if not job_info:
+            logger.error(f"Job {job_id} popped but not found in storage.")
+            return
+
+        video_id = job_info.get("video_id")
+        file_path = job_info.get("file_path")
+        lang_req = job_info.get("lang")
+        task = job_info.get("task")
+
+        logger.info(f"Processing job_id={job_id} video_id={video_id} task={task} lang={lang_req}")
+        storage.update_status(job_id, "PROCESSING")
+
+        try:
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"Audio file not found: {file_path}")
+
+            # 2. Transcribe
+            start_time = time.time()
+            
+            # Handle auto language
+            language_arg = None if lang_req == "auto" else lang_req
+
+            # (Optional) LID Logic could go here if you want pre-check using lid_model
+            # For now, relying on Whisper's auto-detect or explicit lang
+
+            segments, info = model.transcribe(
+                file_path,
+                beam_size=settings.beam_size,
+                vad_filter=settings.vad_filter,
+                task=task,
+                language=language_arg
+            )
+
+            # 3. Format VTT
+            vtt_lines = ["WEBVTT\n"]
+            for segment in segments:
+                start = self._format_timestamp(segment.start)
+                end = self._format_timestamp(segment.end)
+                text = segment.text.strip()
+                vtt_lines.append(f"{start} --> {end}\n{text}\n")
+            
+            result_vtt = "\n".join(vtt_lines)
+            duration = time.time() - start_time
+            
+            logger.info(f"Done job_id={job_id}. Duration: {duration:.2f}s")
+            storage.update_status(job_id, "DONE", result_text=result_vtt)
+
+        except Exception as e:
+            logger.error(f"Failed job_id={job_id}: {e}")
+            storage.update_status(job_id, "ERROR", error_msg=str(e))
+        
+        finally:
+            # Cleanup
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except OSError:
+                    pass
+
+    def _format_timestamp(self, seconds: float):
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = seconds % 60
+        return f"{hours:02}:{minutes:02}:{secs:06.3f}"
