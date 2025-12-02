@@ -54,7 +54,7 @@ def main():
     md = [("authorization", f"Bearer {args.token}")]
 
     print("Submitting job...")
-    submit_reply = stub.Submit(gen_upload(args.video, args.video_id, args.lang, args.task), metadata=md)
+    submit_reply = stub.Submit(gen_upload(args.video, args.video_id, args.lang, args.task), metadata=md, timeout=1800)
     if submit_reply.status != "queued":
         print("Submit failed:", submit_reply.error)
         return

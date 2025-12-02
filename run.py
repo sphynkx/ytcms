@@ -15,16 +15,7 @@ async def serve(host: str, port: int):
     await queue.init()
     await queue.start_workers()
 
-##    server = grpc.aio.server(interceptors=[AuthInterceptor()])
-## Unlimited size
-    server = grpc.aio.server(
-				interceptors=[AuthInterceptor()],
-				options=[
-					('grpc.max_send_message_length', -1),
-					('grpc.max_receive_message_length', -1)
-
-					]
-			)
+    server = grpc.aio.server(interceptors=[AuthInterceptor()])
     captions_pb2_grpc.add_CaptionsServiceServicer_to_server(
         CaptionsServiceImpl(queue),
         server
