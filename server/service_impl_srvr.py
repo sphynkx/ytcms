@@ -70,7 +70,7 @@ class CaptionsServiceImpl(captions_pb2_grpc.CaptionsServiceServicer):
         # Map statuses to lowercase
         api_status = "wait"
         if raw_status == "QUEUED":
-            api_status = "queued" # or "wait"
+            api_status = "wait" # was "queued"
         elif raw_status == "PROCESSING":
             api_status = "processing"
         elif raw_status == "DONE":
