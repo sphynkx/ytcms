@@ -2,12 +2,12 @@ import os
 import time
 import logging
 import threading
+import asyncio
 from datetime import timedelta
-from faster_whisper import WhisperModel
-import fasttext
 
 from config import get_settings
 from jobs.storage import storage
+from provider.faster_whisper_prv import get_provider
 
 settings = get_settings()
 logging.basicConfig(level=getattr(logging, settings.log_level), format='%(asctime)s [ytcms-worker] %(message)s', datefmt='%H:%M:%S')
@@ -17,11 +17,16 @@ class JobQueue:
     def __init__(self):
         self.workers = []
         self.running = False
-
+        
     async def init(self):
-        pass
+        # Init provider once on start
+        logger.info("Initializing Provider (loading model into shared memory)...")
+        get_provider(settings.model, settings.device, settings.compute_type)
+        logger.info("Provider initialized.")
 
     async def start_workers(self):
+        await self.init()
+
         self.running = True
         for i in range(settings.worker_concurrency):
             t = threading.Thread(target=self._worker_loop, args=(i,), daemon=True)
@@ -41,47 +46,22 @@ class JobQueue:
 
     def _worker_loop(self, worker_id):
         logger.info(f"Worker-{worker_id} started.")
-        try:
-            model, lid_model = self._load_models()
-        except Exception as e:
-            logger.critical(f"Worker-{worker_id} failed to load models: {e}")
-            return
-
+        
+        provider = get_provider(settings.model, settings.device, settings.compute_type)
+        
         while self.running:
             try:
                 job_id = storage.pop_task()
                 if not job_id:
                     continue
 
-                self._process_job(job_id, model, lid_model)
+                asyncio.run(self._process_job(job_id, provider))
 
             except Exception as e:
                 logger.error(f"Worker-{worker_id} loop error: {e}")
                 time.sleep(1)
 
-    def _load_models(self):
-        logger.info(f"Loading Whisper model: {settings.model} ({settings.device})...")
-        model = WhisperModel(
-            settings.model,
-            device=settings.device,
-            compute_type=settings.compute_type,
-            download_root=settings.temp_dir 
-        )
-        
-        lid_model = None
-        if settings.lid_enabled:
-            try:
-                if os.path.exists(settings.lid_model_path):
-                    logger.info(f"Loading LID model: {settings.lid_model_path}")
-                    lid_model = fasttext.load_model(settings.lid_model_path)
-                else:
-                    logger.warning(f"LID model not found at {settings.lid_model_path}")
-            except ImportError:
-                logger.warning("fasttext module not installed, LID disabled")
-        
-        return model, lid_model
-
-    def _process_job(self, job_id, model, lid_model):
+    async def _process_job(self, job_id, provider):
         job_info = storage.get_job_info(job_id)
         if not job_info:
             logger.error(f"Job {job_id} popped but not found in storage.")
@@ -102,37 +82,31 @@ class JobQueue:
                 raise FileNotFoundError(f"Audio file not found: {file_path}")
 
             start_time = time.time()
-            language_arg = None if lang_req == "auto" else lang_req
-
-            segments_generator, info = model.transcribe(
-                file_path,
-                beam_size=settings.beam_size,
-                vad_filter=settings.vad_filter,
-                task=task,
-                language=language_arg
-            )
-
-            total_duration = info.duration
-            logger.info(f"Audio duration: {timedelta(seconds=int(total_duration))}. Language: {info.language}")
-
-            vtt_lines = ["WEBVTT\n"]
-            last_percent = 0
             
-            for segment in segments_generator:
-                start = self._format_timestamp(segment.start)
-                end = self._format_timestamp(segment.end)
-                text = segment.text.strip()
-                vtt_lines.append(f"{start} --> {end}\n{text}\n")
+            # Callback for percentage update in Redis
+            def progress_callback(p_float: float):
+                pct = int(p_float * 100)
+                if pct > 100: pct = 100
                 
-                if total_duration > 0:
-                    current_percent = int((segment.end / total_duration) * 100)
-                    # Update Redis only if percentage grown
-                    if current_percent > last_percent:
-                        storage.update_status(job_id, status=None, percent=current_percent)
-                        last_percent = current_percent
-                        
-                        if current_percent % 10 == 0:
-                             logger.info(f"Job {job_id}: {current_percent}%")
+                # Update Redis
+                storage.update_status(job_id, status=None, percent=pct)
+
+            # Call provider
+            # provider.transcribe returns (segs, meta)
+            segs, meta = await provider.transcribe(
+                video_path=file_path,
+                lang=lang_req,
+                task=task,
+                progress_cb=progress_callback
+            )
+            
+            # Convert result to VTT string
+            vtt_lines = ["WEBVTT\n"]
+            for s in segs:
+                start_s = self._format_timestamp(float(s["start"]))
+                end_s = self._format_timestamp(float(s["end"]))
+                text = s["text"].strip()
+                vtt_lines.append(f"{start_s} --> {end_s}\n{text}\n")
             
             result_vtt = "\n".join(vtt_lines)
             duration = time.time() - start_time
