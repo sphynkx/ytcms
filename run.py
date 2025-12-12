@@ -2,6 +2,9 @@ import argparse
 import asyncio
 import signal
 import grpc
+from grpc_reflection.v1alpha import reflection
+
+import captions_pb2
 import captions_pb2_grpc
 from server.interceptors_srvr import AuthInterceptor
 from server.service_impl_srvr import CaptionsServiceImpl
@@ -16,13 +19,23 @@ async def serve(host: str, port: int):
     await queue.start_workers()
 
     server = grpc.aio.server(interceptors=[AuthInterceptor()])
+    
     captions_pb2_grpc.add_CaptionsServiceServicer_to_server(
         CaptionsServiceImpl(queue),
         server
     )
+
+    # Reflections
+    SERVICE_NAMES = (
+        captions_pb2.DESCRIPTOR.services_by_name['CaptionsService'].full_name,
+        reflection.SERVICE_NAME,
+    )
+    reflection.enable_server_reflection(SERVICE_NAMES, server)
+
     server.add_insecure_port(f"{host}:{port}")
     await server.start()
     print(f"[ytcms] gRPC server started on {host}:{port} (model={settings.model}, device={settings.device}, compute_type={settings.compute_type})")
+    print(f"[ytcms] Reflection enabled. Try: grpcurl -plaintext {host}:{port} list")
 
     shutdown_event = asyncio.Event()
 

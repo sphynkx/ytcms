@@ -9,6 +9,11 @@ class AuthInterceptor(grpc.aio.ServerInterceptor):
         handler_call_details: grpc.HandlerCallDetails
     ) -> Any:
         md = dict(handler_call_details.invocation_metadata or [])
+
+        method_name = handler_call_details.method
+        if method_name and method_name.startswith("/grpc.reflection.v1alpha.ServerReflection"):
+             return await continuation(handler_call_details)
+        
         if not validate_token(md):
             def deny_unary(request, context):
                 context.abort(grpc.StatusCode.UNAUTHENTICATED, "Invalid token")

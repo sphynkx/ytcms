@@ -63,6 +63,13 @@ docker-compose logs -f
 ```
 
 ## Test
+Health check/show methods via reflections:
+```bash
+dnf -y install grpcurl
+grpcurl -plaintext 127.0.0.1:9099 list
+grpcurl -plaintext 127.0.0.1:9099 list ytcms.CaptionsService
+```
+
 Put in the root service dir some short video file and run test:
 ```bash
 source .venv/bin/activate
