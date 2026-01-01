@@ -6,6 +6,12 @@ from grpc_reflection.v1alpha import reflection
 
 from proto import captions_pb2
 from proto import captions_pb2_grpc
+
+from grpc_health.v1 import health as health_mod
+from grpc_health.v1 import health_pb2, health_pb2_grpc
+
+from proto import info_pb2, info_pb2_grpc
+
 from server.interceptors_srvr import AuthInterceptor
 from server.service_impl_srvr import CaptionsServiceImpl
 from server.health_info_srvr import InfoService
@@ -20,23 +26,29 @@ async def serve(host: str, port: int):
     await queue.start_workers()
 
     server = grpc.aio.server(interceptors=[AuthInterceptor()])
-    
+
     captions_pb2_grpc.add_CaptionsServiceServicer_to_server(
         CaptionsServiceImpl(queue),
         server
     )
 
-    # Reflections, Health, Info
-    info_service = InfoService()
-    info_service.add_to_server(server)
+    health_servicer = health_mod.HealthServicer()
+    health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
+    # Global status (service=""): SERVING
+    health_servicer.set("", health_pb2.HealthCheckResponse.SERVING)
 
-    SERVICE_NAMES = (
-        captions_pb2.DESCRIPTOR.services_by_name['CaptionsService'].full_name,
-        captions_pb2.DESCRIPTOR.services_by_name['Health'].full_name,
-        captions_pb2.DESCRIPTOR.services_by_name['Info'].full_name,
+    # grpc.health.v1.Info/All
+    info_service = InfoService()
+    info_pb2_grpc.add_InfoServicer_to_server(info_service, server)
+
+    # Reflection
+    service_names = (
+        health_pb2.DESCRIPTOR.services_by_name["Health"].full_name,          # grpc.health.v1.Health
+        info_pb2.DESCRIPTOR.services_by_name["Info"].full_name,              # grpc.health.v1.Info
+        captions_pb2.DESCRIPTOR.services_by_name["CaptionsService"].full_name,  # ytcms.CaptionsService
         reflection.SERVICE_NAME,
     )
-    reflection.enable_server_reflection(SERVICE_NAMES, server)
+    reflection.enable_server_reflection(service_names, server)
 
     server.add_insecure_port(f"{host}:{port}")
     await server.start()

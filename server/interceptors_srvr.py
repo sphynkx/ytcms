@@ -10,23 +10,32 @@ class AuthInterceptor(grpc.aio.ServerInterceptor):
     ) -> Any:
         md = dict(handler_call_details.invocation_metadata or [])
 
-        method_name = handler_call_details.method
-        if method_name and method_name.startswith("/grpc.reflection.v1alpha.ServerReflection"):
-             return await continuation(handler_call_details)
-        
+        method_name = handler_call_details.method or ""
+
+        if method_name.startswith("/grpc.reflection.v1alpha.ServerReflection"):
+            return await continuation(handler_call_details)
+        if method_name.startswith("/grpc.health.v1.Health/"):
+            return await continuation(handler_call_details)
+        if method_name.startswith("/grpc.health.v1.Info/"):
+            return await continuation(handler_call_details)
+
         if not validate_token(md):
+            # Build deny handlers depending on streaming flags
             def deny_unary(request, context):
                 context.abort(grpc.StatusCode.UNAUTHENTICATED, "Invalid token")
             def deny_stream(request_iterator, context):
                 context.abort(grpc.StatusCode.UNAUTHENTICATED, "Invalid token")
+
             info = await continuation(handler_call_details)
             if info is None:
                 return None
+
             if info.request_streaming and info.response_streaming:
-                return grpc.aio.stream_stream_rpc_method_handler(deny_stream)
+                return grpc.stream_stream_rpc_method_handler(deny_stream)
             if info.request_streaming:
-                return grpc.aio.stream_unary_rpc_method_handler(deny_stream)
+                return grpc.stream_unary_rpc_method_handler(deny_stream)
             if info.response_streaming:
-                return grpc.aio.unary_stream_rpc_method_handler(deny_unary)
-            return grpc.aio.unary_unary_rpc_method_handler(deny_unary)
+                return grpc.unary_stream_rpc_method_handler(deny_unary)
+            return grpc.unary_unary_rpc_method_handler(deny_unary)
+
         return await continuation(handler_call_details)
