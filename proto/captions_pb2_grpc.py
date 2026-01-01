@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-import captions_pb2 as captions__pb2
+from . import captions_pb2 as captions__pb2
 
 GRPC_GENERATED_VERSION = '1.66.1'
 GRPC_VERSION = grpc.__version__
@@ -222,6 +222,199 @@ class CaptionsService(object):
             '/ytcms.CaptionsService/GetResult',
             captions__pb2.ResultRequest.SerializeToString,
             captions__pb2.ResultReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+
+class HealthStub(object):
+    """==== Additions for ytadmin ====
+
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.Check = channel.unary_unary(
+                '/ytcms.Health/Check',
+                request_serializer=captions__pb2.HealthCheckRequest.SerializeToString,
+                response_deserializer=captions__pb2.HealthCheckResponse.FromString,
+                _registered_method=True)
+        self.Watch = channel.unary_stream(
+                '/ytcms.Health/Watch',
+                request_serializer=captions__pb2.HealthCheckRequest.SerializeToString,
+                response_deserializer=captions__pb2.HealthCheckResponse.FromString,
+                _registered_method=True)
+
+
+class HealthServicer(object):
+    """==== Additions for ytadmin ====
+
+    """
+
+    def Check(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Watch(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_HealthServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'Check': grpc.unary_unary_rpc_method_handler(
+                    servicer.Check,
+                    request_deserializer=captions__pb2.HealthCheckRequest.FromString,
+                    response_serializer=captions__pb2.HealthCheckResponse.SerializeToString,
+            ),
+            'Watch': grpc.unary_stream_rpc_method_handler(
+                    servicer.Watch,
+                    request_deserializer=captions__pb2.HealthCheckRequest.FromString,
+                    response_serializer=captions__pb2.HealthCheckResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'ytcms.Health', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('ytcms.Health', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class Health(object):
+    """==== Additions for ytadmin ====
+
+    """
+
+    @staticmethod
+    def Check(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/ytcms.Health/Check',
+            captions__pb2.HealthCheckRequest.SerializeToString,
+            captions__pb2.HealthCheckResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Watch(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/ytcms.Health/Watch',
+            captions__pb2.HealthCheckRequest.SerializeToString,
+            captions__pb2.HealthCheckResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+
+class InfoStub(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.All = channel.unary_unary(
+                '/ytcms.Info/All',
+                request_serializer=captions__pb2.InfoRequest.SerializeToString,
+                response_deserializer=captions__pb2.InfoResponse.FromString,
+                _registered_method=True)
+
+
+class InfoServicer(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def All(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_InfoServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'All': grpc.unary_unary_rpc_method_handler(
+                    servicer.All,
+                    request_deserializer=captions__pb2.InfoRequest.FromString,
+                    response_serializer=captions__pb2.InfoResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'ytcms.Info', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('ytcms.Info', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class Info(object):
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def All(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/ytcms.Info/All',
+            captions__pb2.InfoRequest.SerializeToString,
+            captions__pb2.InfoResponse.FromString,
             options,
             channel_credentials,
             insecure,

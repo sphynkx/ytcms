@@ -2,8 +2,8 @@ import logging
 import os
 import uuid
 import grpc
-import captions_pb2
-import captions_pb2_grpc
+from proto import captions_pb2
+from proto import captions_pb2_grpc
 from config import get_settings
 from jobs.storage import storage
 

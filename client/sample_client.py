@@ -2,7 +2,7 @@ import argparse
 import grpc
 import os
 import time
-import captions_pb2, captions_pb2_grpc
+from proto import captions_pb2, captions_pb2_grpc
 
 '''
 For tests.. Maybe delete further.

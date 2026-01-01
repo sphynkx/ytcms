@@ -4,10 +4,11 @@ import signal
 import grpc
 from grpc_reflection.v1alpha import reflection
 
-import captions_pb2
-import captions_pb2_grpc
+from proto import captions_pb2
+from proto import captions_pb2_grpc
 from server.interceptors_srvr import AuthInterceptor
 from server.service_impl_srvr import CaptionsServiceImpl
+from server.health_info_srvr import InfoService
 from jobs.queue_job import JobQueue
 from config import get_settings
 
@@ -25,9 +26,14 @@ async def serve(host: str, port: int):
         server
     )
 
-    # Reflections
+    # Reflections, Health, Info
+    info_service = InfoService()
+    info_service.add_to_server(server)
+
     SERVICE_NAMES = (
         captions_pb2.DESCRIPTOR.services_by_name['CaptionsService'].full_name,
+        captions_pb2.DESCRIPTOR.services_by_name['Health'].full_name,
+        captions_pb2.DESCRIPTOR.services_by_name['Info'].full_name,
         reflection.SERVICE_NAME,
     )
     reflection.enable_server_reflection(SERVICE_NAMES, server)
