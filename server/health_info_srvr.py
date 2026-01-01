@@ -32,7 +32,7 @@ class InfoService(info_pb2_grpc.InfoServicer):
 
         host_port = f"{self._settings.host}:{self._settings.port}"
 
-        app_name = "YTCms-srv"
+        app_name = "YurTube Captions Generation Service"
 
         version = getattr(self._settings, "version", "") or self._settings.model
 
