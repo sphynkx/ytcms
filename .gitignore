@@ -16,6 +16,7 @@ install/mongo_setup.js
 .venv/
 .env
 install/.env
+install/docker/.env
 
 # Logs
 *.log
