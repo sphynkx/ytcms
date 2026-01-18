@@ -27,7 +27,44 @@ python -m grpc_tools.protoc  -I proto --python_out=. --grpc_python_out=. proto/c
 
 Make sure that `captions_pb2.py` and `captions_pb2_grpc.py` have been created in the root service dir.
 
-Optionally edit `config.py` - port, model etc.. And run:
+Default config is 127.0.0.1:9099 but you may reconfigure it to multiserver configuration and redefine other params via `.env`:
+```conf
+YTCMS_WORKER_CONCURRENCY=2
+YTCMS_MODEL=large-v3
+YTCMS_COMPUTE_TYPE=float32
+
+# Transcription parameters
+YTCMS_BEAM_SIZE=8
+YTCMS_VAD_FILTER=true
+YTCMS_TEMPERATURE=0.2
+YTCMS_COMPRESSION_RATIO_THRESHOLD=2.2
+YTCMS_LOG_PROB_THRESHOLD=-1.0
+YTCMS_NO_SPEECH_THRESHOLD=0.6
+YTCMS_PATIENCE=1
+YTCMS_PROGRESS_ASSUMED_MAX_SEGS=20
+YTCMS_CONDITION_ON_PREVIOUS_TEXT=false
+YTCMS_SUPPRESS_BLANK=true
+
+# Mixed-language mode
+##YTCMS_INITIAL_PROMPT="Transcribe the following audio in its spoken language. Do not translate."
+YTCMS_MIXED_CHUNK_SEC=30
+YTCMS_MIXED_OVERLAP_SEC=2
+YTCMS_MIXED_RETRY_ISOLATED_LANG=true
+YTCMS_MIXED_LOOKBEHIND_SEC=1.0
+YTCMS_MAX_SEGMENT_SEC=10
+YTCMS_MAX_SEGMENT_CHARS=50
+YTCMS_SUBSEG_MAX_CHARS=50
+YTCMS_SUBSEG_MAX_SEC=6
+YTCMS_DISCLAIMER_MAX_SEC=4
+YTCMS_FILTER_NOISE_SEGMENTS=true
+# FastText
+YTCMS_LID_ENABLED=true
+YTCMS_LID_MODEL_PATH=/opt/ytcms/models/lid.176.bin
+YTCMS_LID_CONFIDENCE=0.85
+YTCMS_LID_FAVOR_NEIGHBORS=true
+```
+
+Make first run manually to initially download big model files:
 ```bash
 export YTCMS_TOKEN="MY_SECRET_TOKEN"
 python -m ytcms.server.run_server --host 0.0.0.0 --port 9099
