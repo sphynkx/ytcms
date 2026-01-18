@@ -4,7 +4,7 @@ This is supplemental service for [YurTube app](https://github.com/sphynkx/yurtub
 If ffmpeg andd its devel-packages not installed:
 ```bash
 sudo dnf install --nogpgcheck   https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
-sudo dnf install -y ffmpeg ffmpeg-devel pkgconf-pkg-config python3 python3-devel gcc gcc-c++ grpcurl
+sudo dnf install -y ffmpeg ffmpeg-devel pkgconf-pkg-config redis python3 python3-devel gcc gcc-c++ grpcurl
 ```
 
 Next:
