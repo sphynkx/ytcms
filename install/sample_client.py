@@ -6,9 +6,9 @@ from proto import captions_pb2, captions_pb2_grpc
 
 '''
 For tests.. Maybe delete further.
-Put some little *.webm and:
-source .venv/bin/activate
-python -m client.sample_client --host 127.0.0.1 --port 9099 --token CHANGE_ME --video ./test_short.webm --video-id testvid1 --lang auto --task transcribe
+Put some little /tmp/*.webm and:
+source ../.venv/bin/activate
+python -m client.sample_client --host 127.0.0.1 --port 9099 --token CHANGE_ME --video /tmp/test_short.webm --video-id testvid1 --lang auto --task transcribe
 
 will output transcribe progres, the VTT output.
 Progress still bad works with tiny model

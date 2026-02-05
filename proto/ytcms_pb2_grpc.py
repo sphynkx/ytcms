@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from . import captions_pb2 as captions__pb2
+from . import ytcms_pb2 as ytcms__pb2
 
 GRPC_GENERATED_VERSION = '1.66.1'
 GRPC_VERSION = grpc.__version__
@@ -18,7 +18,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + f' but the generated code in captions_pb2_grpc.py depends on'
+        + f' but the generated code in ytcms_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -26,8 +26,7 @@ if _version_not_supported:
 
 
 class CaptionsServiceStub(object):
-    """--- Service
-    """
+    """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
         """Constructor.
@@ -35,56 +34,40 @@ class CaptionsServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.Submit = channel.stream_unary(
-                '/ytcms.CaptionsService/Submit',
-                request_serializer=captions__pb2.UploadChunk.SerializeToString,
-                response_deserializer=captions__pb2.SubmitReply.FromString,
+        self.SubmitJob = channel.unary_unary(
+                '/ytcms.v1.CaptionsService/SubmitJob',
+                request_serializer=ytcms__pb2.SubmitJobRequest.SerializeToString,
+                response_deserializer=ytcms__pb2.JobAck.FromString,
                 _registered_method=True)
-        self.GetStatus = channel.unary_unary(
-                '/ytcms.CaptionsService/GetStatus',
-                request_serializer=captions__pb2.JobStatusRequest.SerializeToString,
-                response_deserializer=captions__pb2.JobStatusReply.FromString,
-                _registered_method=True)
-        self.StreamStatus = channel.unary_stream(
-                '/ytcms.CaptionsService/StreamStatus',
-                request_serializer=captions__pb2.JobStatusRequest.SerializeToString,
-                response_deserializer=captions__pb2.JobStatusReply.FromString,
+        self.WatchJob = channel.unary_stream(
+                '/ytcms.v1.CaptionsService/WatchJob',
+                request_serializer=ytcms__pb2.WatchJobRequest.SerializeToString,
+                response_deserializer=ytcms__pb2.JobEvent.FromString,
                 _registered_method=True)
         self.GetResult = channel.unary_unary(
-                '/ytcms.CaptionsService/GetResult',
-                request_serializer=captions__pb2.ResultRequest.SerializeToString,
-                response_deserializer=captions__pb2.ResultReply.FromString,
+                '/ytcms.v1.CaptionsService/GetResult',
+                request_serializer=ytcms__pb2.GetResultRequest.SerializeToString,
+                response_deserializer=ytcms__pb2.JobResult.FromString,
                 _registered_method=True)
 
 
 class CaptionsServiceServicer(object):
-    """--- Service
-    """
+    """Missing associated documentation comment in .proto file."""
 
-    def Submit(self, request_iterator, context):
-        """Stream load video.
-        """
+    def SubmitJob(self, request, context):
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GetStatus(self, request, context):
-        """One-time status.
-        """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def StreamStatus(self, request, context):
-        """Streaming status update (while the task is not completed).
-        """
+    def WatchJob(self, request, context):
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def GetResult(self, request, context):
-        """Getting the result (after status=done).
-        """
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -92,67 +75,34 @@ class CaptionsServiceServicer(object):
 
 def add_CaptionsServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'Submit': grpc.stream_unary_rpc_method_handler(
-                    servicer.Submit,
-                    request_deserializer=captions__pb2.UploadChunk.FromString,
-                    response_serializer=captions__pb2.SubmitReply.SerializeToString,
+            'SubmitJob': grpc.unary_unary_rpc_method_handler(
+                    servicer.SubmitJob,
+                    request_deserializer=ytcms__pb2.SubmitJobRequest.FromString,
+                    response_serializer=ytcms__pb2.JobAck.SerializeToString,
             ),
-            'GetStatus': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetStatus,
-                    request_deserializer=captions__pb2.JobStatusRequest.FromString,
-                    response_serializer=captions__pb2.JobStatusReply.SerializeToString,
-            ),
-            'StreamStatus': grpc.unary_stream_rpc_method_handler(
-                    servicer.StreamStatus,
-                    request_deserializer=captions__pb2.JobStatusRequest.FromString,
-                    response_serializer=captions__pb2.JobStatusReply.SerializeToString,
+            'WatchJob': grpc.unary_stream_rpc_method_handler(
+                    servicer.WatchJob,
+                    request_deserializer=ytcms__pb2.WatchJobRequest.FromString,
+                    response_serializer=ytcms__pb2.JobEvent.SerializeToString,
             ),
             'GetResult': grpc.unary_unary_rpc_method_handler(
                     servicer.GetResult,
-                    request_deserializer=captions__pb2.ResultRequest.FromString,
-                    response_serializer=captions__pb2.ResultReply.SerializeToString,
+                    request_deserializer=ytcms__pb2.GetResultRequest.FromString,
+                    response_serializer=ytcms__pb2.JobResult.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'ytcms.CaptionsService', rpc_method_handlers)
+            'ytcms.v1.CaptionsService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('ytcms.CaptionsService', rpc_method_handlers)
+    server.add_registered_method_handlers('ytcms.v1.CaptionsService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
 class CaptionsService(object):
-    """--- Service
-    """
+    """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def Submit(request_iterator,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.stream_unary(
-            request_iterator,
-            target,
-            '/ytcms.CaptionsService/Submit',
-            captions__pb2.UploadChunk.SerializeToString,
-            captions__pb2.SubmitReply.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def GetStatus(request,
+    def SubmitJob(request,
             target,
             options=(),
             channel_credentials=None,
@@ -165,9 +115,9 @@ class CaptionsService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/ytcms.CaptionsService/GetStatus',
-            captions__pb2.JobStatusRequest.SerializeToString,
-            captions__pb2.JobStatusReply.FromString,
+            '/ytcms.v1.CaptionsService/SubmitJob',
+            ytcms__pb2.SubmitJobRequest.SerializeToString,
+            ytcms__pb2.JobAck.FromString,
             options,
             channel_credentials,
             insecure,
@@ -179,7 +129,7 @@ class CaptionsService(object):
             _registered_method=True)
 
     @staticmethod
-    def StreamStatus(request,
+    def WatchJob(request,
             target,
             options=(),
             channel_credentials=None,
@@ -192,9 +142,9 @@ class CaptionsService(object):
         return grpc.experimental.unary_stream(
             request,
             target,
-            '/ytcms.CaptionsService/StreamStatus',
-            captions__pb2.JobStatusRequest.SerializeToString,
-            captions__pb2.JobStatusReply.FromString,
+            '/ytcms.v1.CaptionsService/WatchJob',
+            ytcms__pb2.WatchJobRequest.SerializeToString,
+            ytcms__pb2.JobEvent.FromString,
             options,
             channel_credentials,
             insecure,
@@ -219,9 +169,9 @@ class CaptionsService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/ytcms.CaptionsService/GetResult',
-            captions__pb2.ResultRequest.SerializeToString,
-            captions__pb2.ResultReply.FromString,
+            '/ytcms.v1.CaptionsService/GetResult',
+            ytcms__pb2.GetResultRequest.SerializeToString,
+            ytcms__pb2.JobResult.FromString,
             options,
             channel_credentials,
             insecure,
@@ -234,8 +184,7 @@ class CaptionsService(object):
 
 
 class HealthStub(object):
-    """==== Additions for ytadmin ====
-
+    """keep health/info for ytadmin
     """
 
     def __init__(self, channel):
@@ -245,20 +194,19 @@ class HealthStub(object):
             channel: A grpc.Channel.
         """
         self.Check = channel.unary_unary(
-                '/ytcms.Health/Check',
-                request_serializer=captions__pb2.HealthCheckRequest.SerializeToString,
-                response_deserializer=captions__pb2.HealthCheckResponse.FromString,
+                '/ytcms.v1.Health/Check',
+                request_serializer=ytcms__pb2.HealthCheckRequest.SerializeToString,
+                response_deserializer=ytcms__pb2.HealthCheckResponse.FromString,
                 _registered_method=True)
         self.Watch = channel.unary_stream(
-                '/ytcms.Health/Watch',
-                request_serializer=captions__pb2.HealthCheckRequest.SerializeToString,
-                response_deserializer=captions__pb2.HealthCheckResponse.FromString,
+                '/ytcms.v1.Health/Watch',
+                request_serializer=ytcms__pb2.HealthCheckRequest.SerializeToString,
+                response_deserializer=ytcms__pb2.HealthCheckResponse.FromString,
                 _registered_method=True)
 
 
 class HealthServicer(object):
-    """==== Additions for ytadmin ====
-
+    """keep health/info for ytadmin
     """
 
     def Check(self, request, context):
@@ -278,25 +226,24 @@ def add_HealthServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'Check': grpc.unary_unary_rpc_method_handler(
                     servicer.Check,
-                    request_deserializer=captions__pb2.HealthCheckRequest.FromString,
-                    response_serializer=captions__pb2.HealthCheckResponse.SerializeToString,
+                    request_deserializer=ytcms__pb2.HealthCheckRequest.FromString,
+                    response_serializer=ytcms__pb2.HealthCheckResponse.SerializeToString,
             ),
             'Watch': grpc.unary_stream_rpc_method_handler(
                     servicer.Watch,
-                    request_deserializer=captions__pb2.HealthCheckRequest.FromString,
-                    response_serializer=captions__pb2.HealthCheckResponse.SerializeToString,
+                    request_deserializer=ytcms__pb2.HealthCheckRequest.FromString,
+                    response_serializer=ytcms__pb2.HealthCheckResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'ytcms.Health', rpc_method_handlers)
+            'ytcms.v1.Health', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('ytcms.Health', rpc_method_handlers)
+    server.add_registered_method_handlers('ytcms.v1.Health', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
 class Health(object):
-    """==== Additions for ytadmin ====
-
+    """keep health/info for ytadmin
     """
 
     @staticmethod
@@ -313,9 +260,9 @@ class Health(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/ytcms.Health/Check',
-            captions__pb2.HealthCheckRequest.SerializeToString,
-            captions__pb2.HealthCheckResponse.FromString,
+            '/ytcms.v1.Health/Check',
+            ytcms__pb2.HealthCheckRequest.SerializeToString,
+            ytcms__pb2.HealthCheckResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -340,9 +287,9 @@ class Health(object):
         return grpc.experimental.unary_stream(
             request,
             target,
-            '/ytcms.Health/Watch',
-            captions__pb2.HealthCheckRequest.SerializeToString,
-            captions__pb2.HealthCheckResponse.FromString,
+            '/ytcms.v1.Health/Watch',
+            ytcms__pb2.HealthCheckRequest.SerializeToString,
+            ytcms__pb2.HealthCheckResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -364,9 +311,9 @@ class InfoStub(object):
             channel: A grpc.Channel.
         """
         self.All = channel.unary_unary(
-                '/ytcms.Info/All',
-                request_serializer=captions__pb2.InfoRequest.SerializeToString,
-                response_deserializer=captions__pb2.InfoResponse.FromString,
+                '/ytcms.v1.Info/All',
+                request_serializer=ytcms__pb2.InfoRequest.SerializeToString,
+                response_deserializer=ytcms__pb2.InfoResponse.FromString,
                 _registered_method=True)
 
 
@@ -384,14 +331,14 @@ def add_InfoServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'All': grpc.unary_unary_rpc_method_handler(
                     servicer.All,
-                    request_deserializer=captions__pb2.InfoRequest.FromString,
-                    response_serializer=captions__pb2.InfoResponse.SerializeToString,
+                    request_deserializer=ytcms__pb2.InfoRequest.FromString,
+                    response_serializer=ytcms__pb2.InfoResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'ytcms.Info', rpc_method_handlers)
+            'ytcms.v1.Info', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('ytcms.Info', rpc_method_handlers)
+    server.add_registered_method_handlers('ytcms.v1.Info', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
@@ -412,9 +359,9 @@ class Info(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/ytcms.Info/All',
-            captions__pb2.InfoRequest.SerializeToString,
-            captions__pb2.InfoResponse.FromString,
+            '/ytcms.v1.Info/All',
+            ytcms__pb2.InfoRequest.SerializeToString,
+            ytcms__pb2.InfoResponse.FromString,
             options,
             channel_credentials,
             insecure,

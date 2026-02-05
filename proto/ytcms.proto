@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package ytcms.v1;
+
+import "google/protobuf/struct.proto";
+
+message StorageRef {
+  string address = 1; // host:port
+  bool tls = 2;
+  string token = 3;
+}
+
+message SourceRef {
+  StorageRef storage = 1;
+  string rel_path = 2; // e.g. "RV/xxxx/original.webm"
+  string mime = 3;     // optional (video/webm)
+  string filename = 4; // optional (original.webm)
+}
+
+message OutputRef {
+  StorageRef storage = 1;
+  string base_rel_dir = 2; // e.g. "RV/xxxx/captions"
+}
+
+message SubmitJobRequest {
+  string video_id = 1;
+  string idempotency_key = 2;
+
+  // processing params
+  string lang = 3; // "auto" or ISO
+  string task = 4; // "transcribe" | "translate"
+
+  SourceRef source = 5;
+  OutputRef output = 6;
+
+  google.protobuf.Struct options = 7; // reserved for future
+}
+
+message JobAck {
+  string job_id = 1;
+  bool accepted = 2;
+  bool reused = 3;
+  string message = 4;
+  google.protobuf.Struct meta = 5;
+}
+
+message WatchJobRequest {
+  string job_id = 1;
+  bool send_initial = 2;
+}
+
+message JobError {
+  string code = 1;
+  string message = 2;
+  google.protobuf.Struct meta = 3;
+}
+
+message JobStatus {
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    QUEUED = 1;
+    RUNNING = 2;
+    DONE = 3;
+    FAILED = 4;
+    CANCELED = 5;
+  }
+
+  string job_id = 1;
+  State state = 2;
+  int32 percent = 3; // 0..100
+  string message = 4;
+  google.protobuf.Struct meta = 5;
+  JobError error = 6;
+}
+
+message JobEvent {
+  JobStatus status = 1;
+}
+
+message GetResultRequest {
+  string job_id = 1;
+}
+
+message JobResult {
+  JobStatus.State state = 1;
+  string message = 2;
+  JobError error = 3;
+  google.protobuf.Struct meta = 4;
+
+  // output
+  string detected_lang = 10;
+  string vtt_rel_path = 11;      // e.g. "RV/xxxx/captions/captions.vtt"
+  string meta_rel_path = 12;     // e.g. "RV/xxxx/captions/captions.meta.json"
+  double duration_sec = 13;
+  string model = 14;
+  string device = 15;
+  string compute_type = 16;
+  string task = 17;
+}
+
+service CaptionsService {
+  rpc SubmitJob(SubmitJobRequest) returns (JobAck);
+  rpc WatchJob(WatchJobRequest) returns (stream JobEvent);
+  rpc GetResult(GetResultRequest) returns (JobResult);
+}
+
+// keep health/info for ytadmin
+service Health {
+  rpc Check(HealthCheckRequest) returns (HealthCheckResponse);
+  rpc Watch(HealthCheckRequest) returns (stream HealthCheckResponse);
+}
+message HealthCheckRequest { string service = 1; }
+message HealthCheckResponse {
+  enum ServingStatus { UNKNOWN = 0; SERVING = 1; NOT_SERVING = 2; }
+  ServingStatus status = 1;
+}
+service Info {
+  rpc All(InfoRequest) returns (InfoResponse);
+}
+message InfoRequest { string selector = 1; }
+message InfoResponse {
+  string app_name = 1;
+  string instance_id = 2;
+  string host = 3;
+  string version = 4;
+  int64 uptime = 5;
+  map<string, string> labels = 6;
+  map<string, double> metrics = 7;
+  string build_hash = 8;
+  string build_time = 9;
+}

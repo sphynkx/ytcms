@@ -33,3 +33,4 @@ storage/*
 !storage/.gitkeep
 
 *.webm
+install/*.webm
