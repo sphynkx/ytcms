@@ -39,15 +39,20 @@ class CaptionsServiceStub(object):
                 request_serializer=ytcms__pb2.SubmitJobRequest.SerializeToString,
                 response_deserializer=ytcms__pb2.JobAck.FromString,
                 _registered_method=True)
-        self.WatchJob = channel.unary_stream(
-                '/ytcms.v1.CaptionsService/WatchJob',
-                request_serializer=ytcms__pb2.WatchJobRequest.SerializeToString,
-                response_deserializer=ytcms__pb2.JobEvent.FromString,
+        self.GetStatus = channel.unary_unary(
+                '/ytcms.v1.CaptionsService/GetStatus',
+                request_serializer=ytcms__pb2.GetStatusRequest.SerializeToString,
+                response_deserializer=ytcms__pb2.GetStatusReply.FromString,
                 _registered_method=True)
         self.GetResult = channel.unary_unary(
                 '/ytcms.v1.CaptionsService/GetResult',
                 request_serializer=ytcms__pb2.GetResultRequest.SerializeToString,
                 response_deserializer=ytcms__pb2.JobResult.FromString,
+                _registered_method=True)
+        self.DeleteCaptions = channel.unary_unary(
+                '/ytcms.v1.CaptionsService/DeleteCaptions',
+                request_serializer=ytcms__pb2.DeleteCaptionsRequest.SerializeToString,
+                response_deserializer=ytcms__pb2.DeleteCaptionsReply.FromString,
                 _registered_method=True)
 
 
@@ -55,19 +60,29 @@ class CaptionsServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def SubmitJob(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """Fire-and-forget submit. Client stores job_id and polls status/result.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def WatchJob(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+    def GetStatus(self, request, context):
+        """Polling status (percent included).
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def GetResult(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """Getting the result (after status=done).
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteCaptions(self, request, context):
+        """Service-side delete of captions artifacts: {storage_rel}/captions (recursive)
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -80,15 +95,20 @@ def add_CaptionsServiceServicer_to_server(servicer, server):
                     request_deserializer=ytcms__pb2.SubmitJobRequest.FromString,
                     response_serializer=ytcms__pb2.JobAck.SerializeToString,
             ),
-            'WatchJob': grpc.unary_stream_rpc_method_handler(
-                    servicer.WatchJob,
-                    request_deserializer=ytcms__pb2.WatchJobRequest.FromString,
-                    response_serializer=ytcms__pb2.JobEvent.SerializeToString,
+            'GetStatus': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetStatus,
+                    request_deserializer=ytcms__pb2.GetStatusRequest.FromString,
+                    response_serializer=ytcms__pb2.GetStatusReply.SerializeToString,
             ),
             'GetResult': grpc.unary_unary_rpc_method_handler(
                     servicer.GetResult,
                     request_deserializer=ytcms__pb2.GetResultRequest.FromString,
                     response_serializer=ytcms__pb2.JobResult.SerializeToString,
+            ),
+            'DeleteCaptions': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteCaptions,
+                    request_deserializer=ytcms__pb2.DeleteCaptionsRequest.FromString,
+                    response_serializer=ytcms__pb2.DeleteCaptionsReply.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -129,7 +149,7 @@ class CaptionsService(object):
             _registered_method=True)
 
     @staticmethod
-    def WatchJob(request,
+    def GetStatus(request,
             target,
             options=(),
             channel_credentials=None,
@@ -139,12 +159,12 @@ class CaptionsService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_stream(
+        return grpc.experimental.unary_unary(
             request,
             target,
-            '/ytcms.v1.CaptionsService/WatchJob',
-            ytcms__pb2.WatchJobRequest.SerializeToString,
-            ytcms__pb2.JobEvent.FromString,
+            '/ytcms.v1.CaptionsService/GetStatus',
+            ytcms__pb2.GetStatusRequest.SerializeToString,
+            ytcms__pb2.GetStatusReply.FromString,
             options,
             channel_credentials,
             insecure,
@@ -172,6 +192,33 @@ class CaptionsService(object):
             '/ytcms.v1.CaptionsService/GetResult',
             ytcms__pb2.GetResultRequest.SerializeToString,
             ytcms__pb2.JobResult.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteCaptions(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/ytcms.v1.CaptionsService/DeleteCaptions',
+            ytcms__pb2.DeleteCaptionsRequest.SerializeToString,
+            ytcms__pb2.DeleteCaptionsReply.FromString,
             options,
             channel_credentials,
             insecure,

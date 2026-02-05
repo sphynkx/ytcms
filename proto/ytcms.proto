@@ -44,11 +44,6 @@ message JobAck {
   google.protobuf.Struct meta = 5;
 }
 
-message WatchJobRequest {
-  string job_id = 1;
-  bool send_initial = 2;
-}
-
 message JobError {
   string code = 1;
   string message = 2;
@@ -73,7 +68,11 @@ message JobStatus {
   JobError error = 6;
 }
 
-message JobEvent {
+message GetStatusRequest {
+  string job_id = 1;
+}
+
+message GetStatusReply {
   JobStatus status = 1;
 }
 
@@ -98,10 +97,28 @@ message JobResult {
   string task = 17;
 }
 
+message DeleteCaptionsRequest {
+  StorageRef storage = 1;
+  string storage_rel = 2; // e.g. "aY/aYH4w2ldvItF"
+}
+
+message DeleteCaptionsReply {
+  bool ok = 1;
+  string message = 2;
+}
+
 service CaptionsService {
+  // Fire-and-forget submit. Client stores job_id and polls status/result.
   rpc SubmitJob(SubmitJobRequest) returns (JobAck);
-  rpc WatchJob(WatchJobRequest) returns (stream JobEvent);
+
+  // Polling status (percent included).
+  rpc GetStatus(GetStatusRequest) returns (GetStatusReply);
+
+  // Getting the result (after status=done).
   rpc GetResult(GetResultRequest) returns (JobResult);
+
+  // Service-side delete of captions artifacts: {storage_rel}/captions (recursive)
+  rpc DeleteCaptions(DeleteCaptionsRequest) returns (DeleteCaptionsReply);
 }
 
 // keep health/info for ytadmin

@@ -89,7 +89,6 @@ class Storage:
         if error_msg is not None:
             update_data["error"] = error_msg
 
-        # optional meta fields
         if result_meta:
             for k in ("detected_lang", "duration_sec", "model", "device", "compute_type"):
                 if k in result_meta and result_meta[k] is not None:
@@ -98,7 +97,6 @@ class Storage:
         if update_data:
             self.r.hset(key, mapping=update_data)
 
-        # notify
         if status is None:
             status = self.r.hget(key, "status")
         if percent is None:

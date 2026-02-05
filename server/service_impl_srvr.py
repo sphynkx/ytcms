@@ -2,13 +2,15 @@ import json
 import logging
 import time
 import uuid
-from typing import Any, Dict, Optional, AsyncIterator
+from typing import Any, Dict
 
 import grpc
 
 from config import get_settings
 from jobs.storage import storage
 from proto import ytcms_pb2, ytcms_pb2_grpc
+
+from utils.ytstorage_client import remove as storage_remove
 
 settings = get_settings()
 logger = logging.getLogger("server")
@@ -59,7 +61,7 @@ def _parse_float(val: Any, default: float) -> float:
         return default
 
 
-def _job_snapshot(job_id: str, job_info: Dict[str, Any]) -> ytcms_pb2.JobStatus:
+def _job_status_from_job(job_id: str, job_info: Dict[str, Any]) -> ytcms_pb2.JobStatus:
     raw_status = job_info.get("status") or ""
     percent = _parse_int(job_info.get("percent"), -1)
     if percent < 0:
@@ -68,16 +70,13 @@ def _job_snapshot(job_id: str, job_info: Dict[str, Any]) -> ytcms_pb2.JobStatus:
         percent = 100
 
     err = (job_info.get("error") or "").strip()
-    msg = ""
     state = _map_status_to_state(raw_status)
-    if state == ytcms_pb2.JobStatus.FAILED and err:
-        msg = err
 
     st = ytcms_pb2.JobStatus(
         job_id=job_id,
         state=state,
         percent=percent,
-        message=msg,
+        message=err if err else "",
     )
     if err:
         st.error.CopyFrom(ytcms_pb2.JobError(code="error", message=err))
@@ -88,7 +87,7 @@ class CaptionsServiceImpl(ytcms_pb2_grpc.CaptionsServiceServicer):
     def __init__(self, queue):
         self.queue = queue
 
-    async def SubmitJob(self, request: ytcms_pb2.SubmitJobRequest, context) -> ytcms_pb2.JobAck:
+    def SubmitJob(self, request: ytcms_pb2.SubmitJobRequest, context) -> ytcms_pb2.JobAck:
         try:
             video_id = (request.video_id or "").strip()
             if not video_id:
@@ -98,7 +97,6 @@ class CaptionsServiceImpl(ytcms_pb2_grpc.CaptionsServiceServicer):
             task = (request.task or "transcribe").strip() or "transcribe"
             idem = (request.idempotency_key or "").strip()
 
-            # validate source
             if not request.source or not request.source.storage:
                 return ytcms_pb2.JobAck(accepted=False, reused=False, message="source.storage is required")
             src_addr = (request.source.storage.address or "").strip()
@@ -109,7 +107,6 @@ class CaptionsServiceImpl(ytcms_pb2_grpc.CaptionsServiceServicer):
             if not src_rel:
                 return ytcms_pb2.JobAck(accepted=False, reused=False, message="source.rel_path is required")
 
-            # validate output
             if not request.output or not request.output.storage:
                 return ytcms_pb2.JobAck(accepted=False, reused=False, message="output.storage is required")
             out_addr = (request.output.storage.address or "").strip()
@@ -118,14 +115,10 @@ class CaptionsServiceImpl(ytcms_pb2_grpc.CaptionsServiceServicer):
 
             out_base = _norm_rel(request.output.base_rel_dir)
             if not out_base:
-                # fallback: derive "{storage_rel}/captions" from source path dirname
-                if "/" in src_rel:
-                    base = src_rel.rsplit("/", 1)[0]
-                else:
-                    base = ""
+                base = src_rel.rsplit("/", 1)[0] if "/" in src_rel else ""
                 out_base = _join_rel(base, "captions")
 
-            # Fixed artifact names (must match YurTube app expectations)
+            # Fixed artifact names expected by YurTube app
             vtt_rel = _join_rel(out_base, "captions.vtt")
             meta_rel = _join_rel(out_base, "captions.meta.json")
 
@@ -153,7 +146,10 @@ class CaptionsServiceImpl(ytcms_pb2_grpc.CaptionsServiceServicer):
                 idempotency_key=idem,
             )
 
-            logger.info(f"SubmitJob accepted job_id={job_id} video_id={video_id} src={src_rel} out={out_base} lang={lang} task={task}")
+            logger.info(
+                f"SubmitJob accepted job_id={job_id} video_id={video_id} "
+                f"src={src_rel} out={out_base} lang={lang} task={task}"
+            )
             return ytcms_pb2.JobAck(job_id=job_id, accepted=True, reused=False, message="queued")
 
         except Exception as e:
@@ -162,108 +158,43 @@ class CaptionsServiceImpl(ytcms_pb2_grpc.CaptionsServiceServicer):
             context.set_details(str(e))
             return ytcms_pb2.JobAck(accepted=False, reused=False, message=str(e))
 
-    async def WatchJob(self, request: ytcms_pb2.WatchJobRequest, context) -> AsyncIterator[ytcms_pb2.JobEvent]:
+    def GetStatus(self, request: ytcms_pb2.GetStatusRequest, context) -> ytcms_pb2.GetStatusReply:
         job_id = (request.job_id or "").strip()
         if not job_id:
-            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details("job_id is required")
-            return
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "job_id is required")
 
-        # 1) initial snapshot
-        if bool(request.send_initial):
-            job_info = storage.get_job_info(job_id) or {}
-            if job_info:
-                yield ytcms_pb2.JobEvent(status=_job_snapshot(job_id, job_info))
-            else:
-                yield ytcms_pb2.JobEvent(
-                    status=ytcms_pb2.JobStatus(
-                        job_id=job_id,
-                        state=ytcms_pb2.JobStatus.FAILED,
-                        percent=0,
-                        message="Job not found",
-                        error=ytcms_pb2.JobError(code="not_found", message="Job not found"),
-                    )
-                )
-                return
+        job_info = storage.get_job_info(job_id)
+        if not job_info:
+            st = ytcms_pb2.JobStatus(
+                job_id=job_id,
+                state=ytcms_pb2.JobStatus.FAILED,
+                percent=0,
+                message="Job not found",
+            )
+            st.error.CopyFrom(ytcms_pb2.JobError(code="not_found", message="Job not found"))
+            return ytcms_pb2.GetStatusReply(status=st)
 
-        # 2) stream updates from redis pubsub
-        ps = storage.pubsub()
-        ps.subscribe(settings.redis_pub_channel)
+        return ytcms_pb2.GetStatusReply(status=_job_status_from_job(job_id, job_info))
 
-        last_emit_ts = 0.0
-        try:
-            while True:
-                if context.cancelled():
-                    return
-
-                msg = ps.get_message(ignore_subscribe_messages=True, timeout=1.0)
-                if not msg:
-                    # keepalive: optionally re-emit state every N seconds if you want
-                    continue
-
-                try:
-                    data = msg.get("data")
-                    if isinstance(data, bytes):
-                        data = data.decode("utf-8", "ignore")
-                    event = json.loads(data or "{}")
-                except Exception:
-                    continue
-
-                if (event.get("job_id") or "") != job_id:
-                    continue
-
-                raw_status = event.get("status") or ""
-                percent = _parse_int(event.get("percent"), -1)
-                if percent < 0:
-                    percent = 0
-                if percent > 100:
-                    percent = 100
-                err = (event.get("error") or "").strip()
-
-                st = ytcms_pb2.JobStatus(
-                    job_id=job_id,
-                    state=_map_status_to_state(raw_status),
-                    percent=int(percent),
-                    message=err if err else "",
-                )
-                if err:
-                    st.error.CopyFrom(ytcms_pb2.JobError(code="error", message=err))
-
-                yield ytcms_pb2.JobEvent(status=st)
-
-                if st.state in (ytcms_pb2.JobStatus.DONE, ytcms_pb2.JobStatus.FAILED, ytcms_pb2.JobStatus.CANCELED):
-                    return
-
-        finally:
-            try:
-                ps.close()
-            except Exception:
-                pass
-
-    async def GetResult(self, request: ytcms_pb2.GetResultRequest, context) -> ytcms_pb2.JobResult:
+    def GetResult(self, request: ytcms_pb2.GetResultRequest, context) -> ytcms_pb2.JobResult:
         job_id = (request.job_id or "").strip()
         if not job_id:
-            context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
-            context.set_details("job_id is required")
-            return ytcms_pb2.JobResult()
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "job_id is required")
 
         job_info = storage.get_job_info(job_id)
         if not job_info:
             context.set_code(grpc.StatusCode.NOT_FOUND)
             context.set_details("Job not found")
-            return ytcms_pb2.JobResult(
-                state=ytcms_pb2.JobStatus.FAILED,
-                message="Job not found",
-                error=ytcms_pb2.JobError(code="not_found", message="Job not found"),
-            )
+            res = ytcms_pb2.JobResult(state=ytcms_pb2.JobStatus.FAILED, message="Job not found")
+            res.error.CopyFrom(ytcms_pb2.JobError(code="not_found", message="Job not found"))
+            return res
 
         state = _map_status_to_state(job_info.get("status") or "")
         err = (job_info.get("error") or "").strip()
 
-        return ytcms_pb2.JobResult(
+        res = ytcms_pb2.JobResult(
             state=state,
             message=err if err else "",
-            error=ytcms_pb2.JobError(code="error", message=err) if err else None,  # optional field
             detected_lang=(job_info.get("detected_lang") or "").strip(),
             vtt_rel_path=_norm_rel(job_info.get("vtt_rel_path") or ""),
             meta_rel_path=_norm_rel(job_info.get("meta_rel_path") or ""),
@@ -273,3 +204,39 @@ class CaptionsServiceImpl(ytcms_pb2_grpc.CaptionsServiceServicer):
             compute_type=(job_info.get("compute_type") or "").strip(),
             task=(job_info.get("task") or "").strip(),
         )
+        if err:
+            res.error.CopyFrom(ytcms_pb2.JobError(code="error", message=err))
+        return res
+
+    def DeleteCaptions(self, request: ytcms_pb2.DeleteCaptionsRequest, context) -> ytcms_pb2.DeleteCaptionsReply:
+        """
+        Variant A: delete {storage_rel}/captions recursively in ytstorage.
+        """
+        try:
+            if not request.storage or not (request.storage.address or "").strip():
+                context.abort(grpc.StatusCode.INVALID_ARGUMENT, "storage.address is required")
+
+            storage_rel = _norm_rel(request.storage_rel)
+            if not storage_rel:
+                context.abort(grpc.StatusCode.INVALID_ARGUMENT, "storage_rel is required")
+
+            captions_dir = _join_rel(storage_rel, "captions")
+
+            storage_remove(
+                address=request.storage.address,
+                tls=bool(request.storage.tls),
+                token=(request.storage.token or ""),
+                rel_path=captions_dir,
+                recursive=True,
+            )
+
+            logger.info(f"DeleteCaptions ok storage_rel={storage_rel}")
+            return ytcms_pb2.DeleteCaptionsReply(ok=True, message="deleted")
+
+        except grpc.RpcError:
+            raise
+        except Exception as e:
+            logger.error(f"DeleteCaptions failed: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return ytcms_pb2.DeleteCaptionsReply(ok=False, message=str(e))

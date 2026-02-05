@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import os
-import ssl
 import grpc
-from typing import Iterable, Iterator, Optional, Tuple
+from typing import Iterator, Optional
 
 from proto import ytstorage_pb2, ytstorage_pb2_grpc
 
-
 _CHUNK = 2_000_000
+
+# gRPC limits (bytes). Default is 4MiB, too small for some ytstorage ReadChunk implementations.
+_MAX_RECV = int(os.getenv("YTCMS_GRPC_MAX_RECV_MB", "64")) * 1024 * 1024
+_MAX_SEND = int(os.getenv("YTCMS_GRPC_MAX_SEND_MB", "64")) * 1024 * 1024
 
 
 def _auth_md(token: str) -> list[tuple[str, str]]:
@@ -23,12 +25,16 @@ def _make_channel(address: str, tls: bool) -> grpc.Channel:
     if not addr:
         raise ValueError("ytstorage address is empty")
 
-    if not tls:
-        return grpc.insecure_channel(addr)
+    opts = [
+        ("grpc.max_receive_message_length", _MAX_RECV),
+        ("grpc.max_send_message_length", _MAX_SEND),
+    ]
 
-    # Minimal TLS setup (system CAs). If you later need custom CA/cert pinning, add env-driven loading here.
+    if not tls:
+        return grpc.insecure_channel(addr, options=opts)
+
     creds = grpc.ssl_channel_credentials()
-    return grpc.secure_channel(addr, creds)
+    return grpc.secure_channel(addr, creds, options=opts)
 
 
 def _normalize_rel(p: str) -> str:
@@ -36,7 +42,6 @@ def _normalize_rel(p: str) -> str:
     s = s.lstrip("/")
     if s == "":
         return ""
-    # avoid // and ./ segments
     parts = [x for x in s.split("/") if x and x != "."]
     return "/".join(parts)
 
@@ -75,7 +80,30 @@ def mkdirs(*, address: str, tls: bool, token: str, rel_dir: str, exist_ok: bool 
     try:
         stub = ytstorage_pb2_grpc.StorageServiceStub(ch)
         md = _auth_md(token)
-        stub.Mkdirs(ytstorage_pb2.MkdirsRequest(path=ytstorage_pb2.Path(rel_path=rel), exist_ok=exist_ok), metadata=md)
+        stub.Mkdirs(
+            ytstorage_pb2.MkdirsRequest(path=ytstorage_pb2.Path(rel_path=rel), exist_ok=exist_ok),
+            metadata=md,
+        )
+    finally:
+        try:
+            ch.close()
+        except Exception:
+            pass
+
+
+def remove(*, address: str, tls: bool, token: str, rel_path: str, recursive: bool = False) -> None:
+    rel = _normalize_rel(rel_path)
+    if not rel:
+        raise ValueError("rel_path is empty")
+
+    ch = _make_channel(address, tls)
+    try:
+        stub = ytstorage_pb2_grpc.StorageServiceStub(ch)
+        md = _auth_md(token)
+        stub.Remove(
+            ytstorage_pb2.RemoveRequest(path=ytstorage_pb2.Path(rel_path=rel), recursive=bool(recursive)),
+            metadata=md,
+        )
     finally:
         try:
             ch.close()
@@ -105,7 +133,6 @@ def upload_bytes(*, address: str, tls: bool, token: str, rel_path: str, payload:
             for i in range(0, len(payload), _CHUNK):
                 yield ytstorage_pb2.WriteEnvelope(data=ytstorage_pb2.WriteData(data=payload[i : i + _CHUNK]))
 
-        # server returns stream of WriteAck; we consume and ensure ok
         last_ack: Optional[ytstorage_pb2.WriteAck] = None
         for ack in stub.Write(gen(), metadata=md):
             last_ack = ack
